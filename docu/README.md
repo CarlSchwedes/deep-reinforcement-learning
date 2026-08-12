@@ -1,6 +1,4 @@
 # Deep Reinforcement Learning
-
-
 ## Intro to Reinforcement Learning (RL) and Deep RL (DRL):
 
 
