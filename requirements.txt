@@ -1,0 +1,2 @@
+gymnasium[Box2D]
+swig
