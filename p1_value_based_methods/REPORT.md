@@ -18,20 +18,29 @@ This project trains a Deep Q-Network (DQN) agent to solve the Unity Banana Navig
 
 ## 2. Learning Algorithm
 
-The implementation uses off-policy DQN with experience replay and a target network.
+The implementation uses off-policy DQN with experience replay, target network, Double DQN, Prioritized Experience Replay (PER), and Noisy Networks for learned exploration.
 
 At each environment step:
-1. Choose action with epsilon-greedy policy from the local Q-network.
-2. Store transition (s, a, r, s', done) in replay memory.
+1. Choose action using epsilon-greedy policy (standard mode) or learned noise (Noisy Networks mode).
+2. Store transition (s, a, r, s', done) in replay memory with priority (if using PER).
 3. Every UPDATE_EVERY steps, sample a minibatch from replay memory (after warmup).
-4. Compute TD targets with target network:
-
-	Q_target = r + gamma * max_a' Q_target(s', a') * (1 - done)
+   - Standard sampling: uniform random
+   - PER sampling: prioritized by TD-error with importance-sampling weights
+4. Compute TD targets:
+   - Standard DQN: Q_target = r + gamma * max_a' Q_target(s', a') * (1 - done)
+   - Double DQN: Q_target = r + gamma * Q_target(s', argmax_a Q_local(s', a)) * (1 - done)
+   
+   Double DQN uses the local network to select actions and the target network to evaluate them, reducing overestimation bias.
 
 5. Update local network by minimizing TD error.
+   - If using PER, weight loss by importance-sampling weights.
+   - If using Noisy Networks, no epsilon-greedy; noise in weights provides exploration.
 6. Soft-update target network parameters:
 
 	theta_target <- tau * theta_local + (1 - tau) * theta_target
+
+7. Update transition priorities if using Prioritized Experience Replay (based on TD-error).
+8. Resample noise in Noisy Layers if using Noisy Networks.
 
 Code references:
 - Agent and replay: p1_navigation/dqn_agent.py
@@ -39,6 +48,20 @@ Code references:
 
 
 ## 3. Hyperparameters
+
+### Switchable Features
+
+- `use_double_dqn` (default: False) – Enable Double DQN for reduced overestimation
+- `use_prioritized` (default: False) – Enable Prioritized Experience Replay
+- `use_noisy_nets` (default: False) – Enable Noisy Networks for learned exploration
+
+Example usage in notebook:
+```python
+agent = Agent(state_size=37, action_size=4, seed=0,
+              use_double_dqn=True,
+              use_prioritized=True,
+              use_noisy_nets=True)
+```
 
 ### Shared/default values
 
@@ -69,8 +92,26 @@ Code references:
 - eps_end = 0.01
 - eps_decay = 0.995
 
+**Note:** epsilon schedule is ignored when using Noisy Networks; exploration is handled by learned parameter noise.
+
+### Prioritized Experience Replay (PER) hyperparameters
+
+- PER_ALPHA = 0.6 – Priority exponent (higher = more selective sampling)
+- PER_BETA = 0.4 – Importance-sampling exponent (anneals toward 1.0)
+- PER_EPSILON = 1e-6 – Small constant to avoid zero priorities
+
 
 ## 4. Model Architectures
+
+### Noisy Networks Note
+
+When `use_noisy_nets=True`, the output layers (QNetwork.fc3 or DQNNatureNetwork.fc2) are replaced with **NoisyLinear** layers. These layers learn exploration through parameter noise rather than epsilon-greedy.
+
+NoisyLinear mechanism:
+- Learnable mean weights and biases (μ)
+- Learnable noise standard deviations (σ)
+- Factorized Gaussian noise sampled each forward pass
+- During evaluation (eval mode), uses only means (deterministic)
 
 ## 4.1 QNetwork (vector observations)
 
@@ -95,6 +136,18 @@ Used for VisualBanana when state is formed as 4 stacked grayscale frames (4 x 84
 - FC2: 512 -> action_size
 
 Implemented in p1_navigation/model.py as DQNNatureNetwork.
+
+### Optional: Noisy Network Variants
+
+When created with `use_noisy_nets=True`:
+
+**QNetwork with Noisy Output:**
+- FC3: 64 -> action_size (replaced with NoisyLinear)
+
+**DQNNatureNetwork with Noisy Output:**
+- FC2: 512 -> action_size (replaced with NoisyLinear)
+
+All other layers remain deterministic; only output layer introduces learned noise for exploration.
 
 
 ## 5. Reward Plot and Solve Result
@@ -149,26 +202,20 @@ This aligns with the CNN input contract in DQNNatureNetwork.
 
 Concrete improvements to explore:
 
-1. Double DQN
-	- Reduce Q-value overestimation and improve stability.
-
-2. Prioritized Experience Replay
-	- Sample transitions by TD-error magnitude for more efficient learning.
-
-3. Dueling Network Architecture
+1. Dueling Network Architecture
 	- Separate value and advantage streams to improve representation learning.
 
-4. Noisy Networks or Parameter Noise
-	- Replace epsilon-greedy with learned exploration.
-
-5. N-step Returns
+2. N-step Returns
 	- Speed up reward propagation and often improve sample efficiency.
 
-6. Better visual preprocessing
+3. Better visual preprocessing
 	- Frame skipping and max-pooling over frames, if compatible with environment.
 
-7. Hyperparameter sweeps
-	- Systematic search over replay warmup, epsilon decay, optimizer parameters, and target update settings.
+4. Rainbow DQN
+	- Combine all improvements (Double DQN, PER, Noisy Networks, Dueling, N-step) into unified agent.
+
+5. Hyperparameter sweeps
+	- Systematic search over replay warmup, epsilon decay, PER_ALPHA/BETA, optimizer parameters, and target update settings.
 
 
 ## 8. Reproducibility
