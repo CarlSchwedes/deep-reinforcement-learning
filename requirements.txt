@@ -1,2 +1,5 @@
+numpy
+matplotlib
 gymnasium[Box2D]
 swig
+unityagents
