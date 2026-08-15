@@ -296,3 +296,38 @@ For game developers, these trained agents can be used for multiple purposes, inc
 In this course, you will use Unity's rich environments to design, train, and evaluate your own deep reinforcement learning algorithms. You can read more about ML-Agents by perusing the GitHub repository(opens in a new tab).
 [unity github](https://github.com/Unity-Technologies/ml-agents)
 
+
+# Policy Based Methods:
+
+The third part of this nanodegree program covers policy-based methods in deep reinforcement learning. You can find all of the coding exercises from the lessons in this [GitHub repository](https://github.com/udacity/deep-reinforcement-learning).
+
+#### Lesson: Introduction to Policy-Based Methods
+In this lesson, you will learn about methods such as hill climbing, simulated annealing, and adaptive noise scaling. You'll also learn about cross-entropy methods and evolution strategies.
+
+#### Lesson: Policy Gradient Methods
+In this lesson, you'll study REINFORCE, along with improvements we can make to lower the variance of policy gradient algorithms.
+
+#### Lesson: Proximal Policy Optimization
+In this lesson, you'll learn about Proximal Policy Optimization (PPO), a cutting-edge policy gradient method.
+
+#### Lesson: Actor-Critic Methods
+In this lesson, you'll learn how to combine value-based and policy-based methods, bringing together the best of both worlds, to solve challenging reinforcement learning problems.
+
+#### Lesson: Deep RL for Finance (Optional)
+In this optional lesson, you'll learn how to apply deep reinforcement learning techniques for optimal execution of portfolio transactions.
+
+#### Ressources:
+
+Read the most famous [blog post](http://karpathy.github.io/2016/05/31/rl/) on policy gradient methods.
+Implement a policy gradient method to win at Pong in this [Medium post](https://medium.com/@dhruvp/how-to-write-a-neural-network-to-play-pong-from-scratch-956b57d4f6e0).
+Learn more about [evolution strategies](https://blog.openai.com/evolution-strategies/) from OpenAI.
+
+<figure align="center">
+  <img src="img/drl_model_development_policy_based_methods.png" width="50%">
+</figure>
+
+
+## Policies:
+
+Neural network that encodes action probabilities ([Source](https://openai.com/index/evolution-strategies/))
+
