@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-BUFFER_SIZE = int(1e6)  # replay buffer size
+BUFFER_SIZE = int(5e4)  # replay buffer size
 BATCH_SIZE = 64         # minibatch size
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
@@ -114,9 +114,17 @@ class Agent():
             # Get initial state and final next_state
             first_state, first_action, _, _, _ = self.n_step_buffer[0]
             last_state, _, _, last_next_state, last_done = self.n_step_buffer[-1]
+
+            # --- RAM OPTIMIERUNG: Konvertierung zu uint8 für den Buffer ---
+            first_state_uint8 = (first_state * 255).astype(np.uint8)
+            last_next_state_uint8 = (last_next_state * 255).astype(np.uint8)
             
-            # Store n-step experience in replay memory
-            self.memory.add(first_state, first_action, n_step_return, last_next_state, last_done)
+            # Store n-step experience in replay memory as uint8
+            self.memory.add(first_state_uint8, first_action, n_step_return, last_next_state_uint8, last_done)
+            
+            # If n-step or done is reached, clear the buffer to avoid memory fragmentation
+            if done:
+                self.n_step_buffer.clear()
         
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
@@ -264,10 +272,15 @@ class ReplayBuffer:
         """Randomly sample a batch of experiences from memory."""
         experiences = random.sample(self.memory, k=self.batch_size)
 
-        states = torch.from_numpy(np.array([e.state for e in experiences if e is not None])).float().to(device)
+        states_raw = np.stack([e.state for e in experiences if e is not None], axis=0)
+        states = torch.from_numpy(states_raw).float().to(device) / 255.0  # Normalize pixel values if using pixel input
+
         actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
         rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
-        next_states = torch.from_numpy(np.array([e.next_state for e in experiences if e is not None])).float().to(device)
+
+        next_states_raw = np.stack([e.next_state for e in experiences if e is not None], axis=0)
+        next_states = torch.from_numpy(next_states_raw).float().to(device) / 255.0 # Normalize pixel values if using pixel input
+
         dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
   
         return (states, actions, rewards, next_states, dones)
