@@ -202,9 +202,9 @@ All other layers remain deterministic; only the output layer(s) introduce learne
 ## 5. Reward Plot and Solve Result
 
 ### Vector-state (MLP) training
-- Notebook: p1_navigation/Navigation.ipynb
+- Notebook: navigation_vector/Navigation.ipynb
 
-![Training Rewards: Vector-State](images/p1_results_vector.png)
+![Training Rewards: Vector-State](reports/navigation_vector_score.png)
 
 Reported result:
 
@@ -221,9 +221,9 @@ Reported result:
     ```
 
 ### Optional pixel-based (CNN) training
-- Notebook: p1_navigation/Navigation_Pixels.ipynb
+- Notebook: navigation_pixel/Navigation_Pixels.ipynb
 
-![Training Rewards: Pixel-State](images/p1_results_pixel.png)
+![Training Rewards: Pixel-State](reports/navigation_pixel_score.png)
 
 - Environment solved in: <N> episodes
 - Average score over last 100 episodes at solve time: <score>
@@ -276,7 +276,7 @@ All major Rainbow DQN components have been implemented. Remaining areas to explo
 
 To reproduce training:
 1. Follow setup steps in README.md.
-2. Run p1_navigation/Navigation.ipynb for vector-state training.
-3. Run p1_navigation/Navigation_Pixels.ipynb for optional pixel-based training.
+2. Run navigation_vector/Navigation.ipynb for vector-state training.
+3. Run navigation_pixel/Navigation_Pixels.ipynb for optional pixel-based training.
 4. Ensure Unity executable paths match your local machine.
 
