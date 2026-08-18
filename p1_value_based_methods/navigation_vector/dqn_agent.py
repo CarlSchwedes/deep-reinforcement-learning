@@ -17,6 +17,7 @@ UPDATE_EVERY = 4        # how often to update the network
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
 class Agent():
     """Interacts with and learns from the environment."""
 
@@ -53,7 +54,10 @@ class Agent():
             # If enough samples are available in memory, get random subset and learn
             if len(self.memory) > BATCH_SIZE:
                 experiences = self.memory.sample()
-                self.learn(experiences, GAMMA)
+                loss, avg_q = self.learn(experiences, GAMMA)
+                return loss, avg_q
+        # in case no update is performed for this iteration, return None for loss and avg_q
+        return None, None
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
@@ -61,7 +65,7 @@ class Agent():
         Params
         ======
             state (array_like): current state
-            eps (float): epsilon, for epsilon-greedy action selection
+            eps (float): epsilon, for epsilon-greedy action selection (ignored if using Noisy Networks)
         """
         state = torch.from_numpy(state).float().unsqueeze(0).to(device)
         self.qnetwork_local.eval()
@@ -81,12 +85,13 @@ class Agent():
         Params
         ======
             experiences (Tuple[torch.Tensor]): tuple of (s, a, r, s', done) tuples 
-            gamma (float): discount factor
+            gamma (float): discount factor (GAMMA for 1-step, GAMMA^n for n-step returns)
         """
         states, actions, rewards, next_states, dones = experiences
 
-        # Get max predicted Q values (for next states) from target model
+        # Get max predicted Q values (for next states)
         Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+        
         # Compute Q targets for current states 
         Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
 
@@ -95,14 +100,19 @@ class Agent():
 
         # Compute loss
         loss = F.mse_loss(Q_expected, Q_targets)
+        
         # Minimize the loss
         self.optimizer.zero_grad()
         loss.backward()
+        # Clip gradients to avoid exploding gradients
+        torch.nn.utils.clip_grad_norm_(self.qnetwork_local.parameters(), max_norm=1.0)
         self.optimizer.step()
 
         # ------------------- update target network ------------------- #
-        self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)                     
+        self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
 
+        return loss.item(), Q_expected.mean().item()
+        
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.
         θ_target = τ*θ_local + (1 - τ)*θ_target
@@ -131,7 +141,7 @@ class ReplayBuffer:
             seed (int): random seed
         """
         self.action_size = action_size
-        self.memory = deque(maxlen=buffer_size)  
+        self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
         self.seed = random.seed(seed)

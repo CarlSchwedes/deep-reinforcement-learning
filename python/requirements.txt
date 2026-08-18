@@ -12,4 +12,6 @@ torch
 pandas
 scipy
 ipykernel
-gymnasium
+gymnasium[box2d]
+swig
+unityagents
