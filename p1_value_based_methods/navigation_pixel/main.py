@@ -1,20 +1,16 @@
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
 import torch
-import random
 import numpy as np
 from collections import deque
 import numpy as np
 import matplotlib.pyplot as plt
 
 from unityagents import UnityEnvironment
-from dqn_agent import Agent, PrioritizedReplayBuffer
-from utils import init_logger, log_step_metrics, log_episode_metrics, close_logger, log_per_distribution_plot
+from dqn_agent import Agent
+from utils import init_logger, log_step_metrics, log_episode_metrics, close_logger
 
 
 def main():
-    env = UnityEnvironment(file_name="p1_value_based_methods/navigation_vector/Banana_Windows_x86_64/Banana.exe")
+    env = UnityEnvironment(file_name="p1_value_based_methods/navigation_pixel/Banana_Windows_x86_64/Banana.exe")
 
     # get the default brain
     brain_name = env.brain_names[0]
@@ -36,15 +32,7 @@ def main():
     state_size = len(state)
     print('States have length:', state_size)
 
-    # Set random seeds for reproducibility
-    seed = 0
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-    agent = Agent(state_size=state_size, action_size=action_size, use_prioritized_replay=True, use_ddqn_dueling_network=False)
+    agent = Agent(state_size=state_size, action_size=action_size, seed=0)
 
     n_episodes=2000     # n_episodes (int): maximum number of training episodes
     max_t=1000          # max_t (int): maximum number of timesteps per episode
@@ -56,7 +44,7 @@ def main():
     scores_window = deque(maxlen=100)  # last 100 scores
     eps = eps_start                    # initialize epsilon
 
-    logger = init_logger("p1_value_based_methods/navigation_vector/runs", "banana_collector")
+    logger = init_logger("p1_value_based_methods/navigation_pixel/runs", "banana_collector")
     step_count = 0  # Globaler Schrittzähler für die X-Achse im TensorBoard
     for i_episode in range(1, n_episodes+1):
         env_info = env.reset(train_mode=True)[brain_name]
@@ -84,21 +72,11 @@ def main():
                 break 
 
         scores_window.append(score)       # save most recent score
-
         scores.append(score)              # save most recent score
         eps = max(eps_end, eps_decay*eps) # decrease epsilon
 
         log_episode_metrics(logger, score, eps, i_episode)
-
-        # --- NEW: Log the visual distribution plot every 50 episodes ---
-        if i_episode % 50 == 0 and isinstance(agent.memory, PrioritizedReplayBuffer):
-            # Extract the raw priorities array from your PER instance
-            current_priorities = agent.memory.get_active_priorities()
-            current_alpha = agent.memory.alpha
-            
-            # Pass it to our new visual summary utility
-            log_per_distribution_plot(logger, current_priorities, current_alpha, step_count)
-            
+        
         print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)), end="")
         if i_episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))

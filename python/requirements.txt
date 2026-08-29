@@ -1,4 +1,4 @@
-tensorflow
+tensorflow # unityagents
 Pillow
 matplotlib
 numpy
@@ -12,6 +12,6 @@ torch
 pandas
 scipy
 ipykernel
-gymnasium[box2d]
+gymnasium # [box2d]
 swig
 unityagents

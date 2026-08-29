@@ -1,10 +1,10 @@
-name: drl_env
+name: drl_env_py_3_9
 channels:
   - conda-forge
   - pytorch
   - defaults
 dependencies:
-  - python=3.6
+  - python=3.9
   - pip
   - torchvision
   - pip:
