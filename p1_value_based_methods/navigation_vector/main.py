@@ -44,7 +44,7 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    agent = Agent(state_size=state_size, action_size=action_size, use_prioritized_replay=True, use_ddqn_dueling_network=False)
+    agent = Agent(state_size=state_size, action_size=action_size, use_prioritized_replay=True, use_ddqn_dueling_network=True)
 
     n_episodes=2000     # n_episodes (int): maximum number of training episodes
     max_t=1000          # max_t (int): maximum number of timesteps per episode

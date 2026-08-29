@@ -12,7 +12,7 @@ BUFFER_SIZE = int(4e4)  # replay buffer size
 BATCH_SIZE = 64         # minibatch size
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
-LR = 2.5e-4               # learning rate 
+LR = 2.5e-4               # learning rate
 UPDATE_EVERY = 4        # how often to update the network
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -102,7 +102,7 @@ class Agent():
         """
         states, actions, rewards, next_states, dones = experiences
 
-        if self.use_ddqn_dueling_network:
+        if self.use_prioritized_replay or self.use_ddqn_dueling_network:
             # 1. DOUBLE DQN WITH DUELING NETWORKS
             # Use the LOCAL Dueling network to SELECT the best action index for the next states
             # (Extracts the index component [1] from PyTorch's max() function)
@@ -206,7 +206,7 @@ class ReplayBuffer:
 class PrioritizedReplayBuffer:
     """Fixed-size buffer to store priority experience tuples."""
     
-    def __init__(self, action_size, buffer_size, batch_size, alpha=0.6, beta_start=0.4, beta_frames=100000):
+    def __init__(self, action_size, buffer_size, batch_size, alpha=0.4, beta_start=0.4, beta_frames=100000):
         self.action_size = action_size
         self.buffer_size = buffer_size
         self.batch_size = batch_size
