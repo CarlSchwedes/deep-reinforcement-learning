@@ -1,6 +1,5 @@
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
 import torch
 import random
 import numpy as np
@@ -10,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from unityagents import UnityEnvironment
 from dqn_agent import Agent, PrioritizedReplayBuffer
-from utils import init_logger, log_step_metrics, log_episode_metrics, close_logger, log_per_distribution_plot
+from utils import init_logger, log_action_distribution, log_behavioral_metrics, log_gradient_norms, log_step_metrics, log_episode_metrics, close_logger, log_per_distribution_plot
 
 
 def main():
@@ -62,13 +61,25 @@ def main():
         env_info = env.reset(train_mode=True)[brain_name]
         state = env_info.vector_observations[0]
         score = 0
+
+        yellow_collected = 0
+        blue_collected = 0
+        episode_actions = []
+        episode_steps = 0
+
         for t in range(max_t):
             action = agent.act(state, eps)
+            episode_actions.append(action) # Track action choice
 
             env_info = env.step(int(action))[brain_name]
             next_state = env_info.vector_observations[0]
             reward = env_info.rewards[0]
             done = env_info.local_done[0]
+
+            if reward > 0:
+                yellow_collected += 1
+            elif reward < 0:
+                blue_collected += 1
 
             # in case of timeout, consider last Q state valid: rewards + gamma * Q_targets_next
             time_out = (t == max_t - 1)
@@ -76,9 +87,13 @@ def main():
             loss, avg_q = agent.step(state, action, reward, next_state, done)
             log_step_metrics(logger, loss, avg_q, step_count)
 
+            if loss is not None:
+                log_gradient_norms(logger, agent.qnetwork_local, step_count)
+
             state = next_state
             score += reward
             step_count += 1
+            episode_steps += 1
 
             if done or time_out:
                 break 
@@ -88,7 +103,12 @@ def main():
         scores.append(score)              # save most recent score
         eps = max(eps_end, eps_decay*eps) # decrease epsilon
 
+        current_lr = agent.lr_step()  # Step the learning rate scheduler and get the current LR
+
         log_episode_metrics(logger, score, eps, i_episode)
+        log_behavioral_metrics(logger, yellow_collected, blue_collected, episode_steps, i_episode)
+        log_action_distribution(logger, episode_actions, i_episode)
+        logger.add_scalar('Hyperparameters/Learning_Rate', current_lr, i_episode)
 
         # --- NEW: Log the visual distribution plot every 50 episodes ---
         if i_episode % 50 == 0 and isinstance(agent.memory, PrioritizedReplayBuffer):
@@ -99,9 +119,9 @@ def main():
             # Pass it to our new visual summary utility
             log_per_distribution_plot(logger, current_priorities, current_alpha, step_count)
             
-        print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)), end="")
+        print('\rEpisode {}\tAverage Score: {:.2f}\tLR: {:.6f}'.format(i_episode, np.mean(scores_window), current_lr), end="")
         if i_episode % 100 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
+            print('\rEpisode {}\tAverage Score: {:.2f}\tLR: {:.6f}'.format(i_episode, np.mean(scores_window), current_lr))
         if np.mean(scores_window) >= 13.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
             torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
@@ -116,7 +136,7 @@ def main():
     plt.ylabel('Score')
     plt.xlabel('Episode #')
     plt.savefig('p1_value_based_methods/reports/navigation_vector_score.png')
-    plt.show()
+    #plt.show()
 
 
 if __name__ == "__main__":

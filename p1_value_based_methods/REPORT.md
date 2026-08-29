@@ -208,16 +208,16 @@ All other layers remain deterministic; only the output layer(s) introduce learne
 
 Reported result:
 
-- Environment solved in: 386 episodes
+- Environment solved in: 371 episodes
 - Average score over last 100 episodes at solve time: 13.01
 
     ```text
-    Episode 100	Average Score: 0.49
-    Episode 200	Average Score: 4.31
-    Episode 300	Average Score: 7.39
-    Episode 400	Average Score: 10.18
-    Episode 486	Average Score: 13.01
-    Environment solved in 386 episodes!	Average Score: 13.01
+   Episode 100     Average Score: 1.008    LR: 0.000200
+   Episode 200     Average Score: 4.71     LR: 0.000100
+   Episode 300     Average Score: 7.58     LR: 0.000050
+   Episode 400     Average Score: 10.96    LR: 0.000050
+   Episode 471     Average Score: 13.03    LR: 0.000025
+   Environment solved in 371 episodes!     Average Score: 13.03
     ```
 
 ### Optional pixel-based (CNN) training

@@ -58,6 +58,6 @@ class DuelingQNetwork(nn.Module):
         advantage = self.advantage_out(a)
         
         # Combine using the stable dueling formula: Q = V + (A - mean(A))
-        q_values = value + (advantage - advantage.mean(dim=-1, keepdim=True))
+        q_values = value + (advantage - advantage.mean(dim=-1, keepdim=True)[0])
         
         return q_values

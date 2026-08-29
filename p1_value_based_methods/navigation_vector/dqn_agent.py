@@ -7,12 +7,13 @@ from model import QNetwork, DuelingQNetwork
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.optim.lr_scheduler import ExponentialLR, StepLR
 
 BUFFER_SIZE = int(4e4)  # replay buffer size
 BATCH_SIZE = 64         # minibatch size
 GAMMA = 0.99            # discount factor
 TAU = 1e-3              # for soft update of target parameters
-LR = 2.5e-4               # learning rate
+LR = 2e-4               # learning rate
 UPDATE_EVERY = 4        # how often to update the network
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -42,6 +43,9 @@ class Agent():
             self.qnetwork_target = QNetwork(state_size, action_size).to(device)
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
+        # decay_rate=0.995 means LR drops by 0.5% every time step() is called on it
+        self.scheduler = StepLR(self.optimizer, step_size=150, gamma=0.5) # ExponentialLR(self.optimizer, gamma=0.998)
+
         # Chose between Replay Memory and Prioritized Replay Memory
         if self.use_prioritized_replay:
             self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
@@ -49,7 +53,13 @@ class Agent():
             self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
-    
+
+    def lr_step(self):
+        """Steps the learning rate scheduler down and returns the new LR."""
+        self.scheduler.step()
+        # Return the current LR so we can track and log it
+        return self.optimizer.param_groups[0]['lr']
+
     def step(self, state, action, reward, next_state, done):
         # Save experience in replay memory
         self.memory.add(state, action, reward, next_state, done)
@@ -206,7 +216,7 @@ class ReplayBuffer:
 class PrioritizedReplayBuffer:
     """Fixed-size buffer to store priority experience tuples."""
     
-    def __init__(self, action_size, buffer_size, batch_size, alpha=0.4, beta_start=0.4, beta_frames=100000):
+    def __init__(self, action_size, buffer_size, batch_size, alpha=0.3, beta_start=0.4, beta_frames=100000):
         self.action_size = action_size
         self.buffer_size = buffer_size
         self.batch_size = batch_size
@@ -254,7 +264,7 @@ class PrioritizedReplayBuffer:
         
         # Linearly anneal Beta towards 1.0
         self.frame_count += 1
-        self.beta = min(1.0, self.beta_start + self.frame_count * (1.0 - self.beta_start) / self.beta_frames)
+        self.beta = min(.9, self.beta_start + self.frame_count * (.9 - self.beta_start) / self.beta_frames)
         
         # Compute Importance Sampling weights: w_i = (N * P(i))^(-beta) / max(w)
         weights = (actual_size * probs[indices]) ** (-self.beta)

@@ -1,9 +1,11 @@
-# utils.py
 import datetime
+import matplotlib
+matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
+
 
 def init_logger(path, run_name="banana_dqn"):
     """Initialisiert den TensorBoard SummaryWriter mit einem Zeitstempel."""
@@ -67,3 +69,24 @@ def log_per_distribution_plot(writer, priorities, alpha, step_count):
     
     # Close the figure to free up system memory leakages
     plt.close(fig)
+
+def log_behavioral_metrics(writer, yellow, blue, steps, episode):
+    """Logs the breakdown of collected items and episode duration."""
+    writer.add_scalar('Behavior/Yellow_Bananas', yellow, episode)
+    writer.add_scalar('Behavior/Blue_Bananas', blue, episode)
+    writer.add_scalar('Behavior/Steps_Survived', steps, episode)
+
+def log_action_distribution(writer, actions_list, episode):
+    """Logs a histogram of actions chosen during the episode to detect policy loops."""
+    if len(actions_list) > 0:
+        writer.add_histogram('Hyperparameters/Action_Distribution', np.array(actions_list), episode)
+
+def log_gradient_norms(writer, model, step_count):
+    """Tracks the total gradient norm to diagnose vanishing/exploding gradients."""
+    total_norm = 0.0
+    for p in model.parameters():
+        if p.grad is not None:
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+    total_norm = total_norm ** 0.5
+    writer.add_scalar('Train/Gradient_Norm', total_norm, step_count)
