@@ -9,12 +9,13 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 
-BUFFER_SIZE = int(4e4)  # replay buffer size
-BATCH_SIZE = 64         # minibatch size
-GAMMA = 0.99            # discount factor
-TAU = 1e-3              # for soft update of target parameters
-LR = 2e-4               # learning rate
-UPDATE_EVERY = 4        # how often to update the network
+BUFFER_SIZE = int(4e4)      # replay buffer size
+BATCH_SIZE = 64             # minibatch size
+GAMMA = 0.99                # discount factor
+TAU = 1e-3                  # for soft update of target parameters
+LR = 2e-4                   # learning rate
+UPDATE_EVERY = 4            # how often to update the network
+REPLAY_START_SIZE = 64     # warmup before learning from replay
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -22,25 +23,38 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class Agent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, use_prioritized_replay=False, use_ddqn_dueling_network=False):
+    def __init__(self, state_size, action_size, use_prioritized_replay=False, use_ddqn_dueling_network=False, use_replay_start_size=False, use_noisy_nets=False, n_steps=1):
         """Initialize an Agent object.
         
         Params
         ======
             state_size (int): dimension of each state
             action_size (int): dimension of each action
+            use_prioritized_replay (bool): whether to use Prioritized Experience Replay
+            use_ddqn_dueling_network (bool): whether to use Double DQN with Dueling Networks
+            use_replay_start_size (bool): whether to use a warmup period before learning from replay
+            use_noisy_nets (bool): whether to use Noisy Networks
+            n_steps (int): number of steps for n-step returns (default is 1 for standard DQN)
         """
         self.state_size = state_size
         self.action_size = action_size
         self.use_prioritized_replay = use_prioritized_replay
         self.use_ddqn_dueling_network = use_ddqn_dueling_network
-        # Q-Network
+        self.use_replay_start_size = use_replay_start_size
+        self.use_noisy_nets = use_noisy_nets
+
+        if self.use_replay_start_size:
+            self.replay_start_size = REPLAY_START_SIZE if self.use_replay_start_size else BATCH_SIZE
+
         if self.use_ddqn_dueling_network:
-            self.qnetwork_local = DuelingQNetwork(state_size, action_size).to(device)
-            self.qnetwork_target = DuelingQNetwork(state_size, action_size).to(device)
+            self.qnetwork_local = DuelingQNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
+            self.qnetwork_target = DuelingQNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
         else:
-            self.qnetwork_local = QNetwork(state_size, action_size).to(device)
-            self.qnetwork_target = QNetwork(state_size, action_size).to(device)
+            self.qnetwork_local = QNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
+            self.qnetwork_target = QNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
+
+        self.n_steps = n_steps
+
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # decay_rate=0.995 means LR drops by 0.5% every time step() is called on it
@@ -54,6 +68,10 @@ class Agent():
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
 
+        # N-step return tracking
+        self.n_step_buffer = deque(maxlen=n_steps)  # Store n-step experiences
+        self.gamma_power = GAMMA ** n_steps  # Gamma^n for n-step returns
+
     def lr_step(self):
         """Steps the learning rate scheduler down and returns the new LR."""
         self.scheduler.step()
@@ -61,24 +79,75 @@ class Agent():
         return self.optimizer.param_groups[0]['lr']
 
     def step(self, state, action, reward, next_state, done):
-        # Save experience in replay memory
-        self.memory.add(state, action, reward, next_state, done)
+        # 1. add current transition to temporary n-step buffer
+        self.n_step_buffer.append((state, action, reward, next_state, done))
+
+        # 2. If the episode is NOT done, process only when we have a full rolling window
+        if not done:
+            if len(self.n_step_buffer) == self.n_steps:
+                n_state, n_action, n_reward, n_next_state, n_done = self._get_n_step_info()
+                self.memory.add(n_state, n_action, n_reward, n_next_state, n_done)
+        else:
+            # 3. If the episode IS done, cleanly flush out all remaining steps in order
+            while len(self.n_step_buffer) > 0:
+                n_state, n_action, n_reward, n_next_state, n_done = self._get_n_step_info()
+                self.memory.add(n_state, n_action, n_reward, n_next_state, n_done)
         
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
-            if len(self.memory) > BATCH_SIZE:
+            if len(self.memory) > self.replay_start_size:
+                # IMPORTANT: We must pass GAMMA^(n_steps) to the learn() function!
+                gamma_n = GAMMA ** self.n_steps
+
+                if hasattr(self.qnetwork_local, 'reset_noise'):
+                    self.qnetwork_local.reset_noise()
+                if hasattr(self.qnetwork_target, 'reset_noise'):
+                    self.qnetwork_target.reset_noise()
+
                 if self.use_prioritized_replay:
                     experiences, indices, is_weights = self.memory.sample()
-                    loss, avg_q = self.learn(experiences, indices, is_weights, GAMMA)
+                    loss, avg_q = self.learn(experiences, indices, is_weights, gamma_n)
                 else:
                     experiences = self.memory.sample()
-                    loss, avg_q = self.learn(experiences, None, None, GAMMA)
+                    loss, avg_q = self.learn(experiences, None, None, gamma_n)
                 
                 return loss, avg_q
         # in case no update is performed for this iteration, return None for loss and avg_q
         return None, None
+
+    def _get_n_step_info(self):
+        """Computes the discounted n-step rewards and the final next state."""
+        # Get the oldest element (starting point of the n-steps)
+        state, action, reward, next_state, done = self.n_step_buffer[0]
+        
+        # Initialize discounted reward
+        discounted_reward = reward
+        
+        # Go through the subsequent steps in the short-term buffer
+        for i in range(1, len(self.n_step_buffer)):
+            _, _, r, next_s, d = self.n_step_buffer[i]
+            
+            # R_t = R_t + GAMMA^i * R_{t+i}
+            discounted_reward += (GAMMA ** i) * r
+            
+            # The final next state shifts backward
+            next_state = next_s
+            done = d
+            
+            # If a real terminal end occurs in the middle, we break
+            if done:
+                break
+                
+        # We only remove the oldest element from the Deque (FIFO)
+        # If an episode was over (done=True), the while loop in step() empties the rest.
+        if not done:
+            self.n_step_buffer.popleft()
+        else:
+            self.n_step_buffer.clear()
+            
+        return state, action, discounted_reward, next_state, done
 
     def act(self, state, eps=0.):
         """Returns actions for given state as per current policy.
@@ -93,6 +162,11 @@ class Agent():
         with torch.no_grad():
             action_values = self.qnetwork_local(state)
         self.qnetwork_local.train()
+
+        # If using Noisy Networks, the architecture handles exploration internally via weights.
+        # We completely bypass random sampling and act deterministically on the noisy outputs.
+        if hasattr(self.qnetwork_local, 'reset_noise'):
+            return np.argmax(action_values.cpu().data.numpy())
 
         # Epsilon-greedy action selection
         if random.random() > eps:

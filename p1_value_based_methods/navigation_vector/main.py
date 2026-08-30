@@ -43,13 +43,20 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-    agent = Agent(state_size=state_size, action_size=action_size, use_prioritized_replay=True, use_ddqn_dueling_network=True)
+    agent = Agent(state_size=state_size, 
+                  action_size=action_size, 
+                  use_prioritized_replay=True, 
+                  use_ddqn_dueling_network=True, 
+                  use_replay_start_size=True, 
+                  use_noisy_nets=True, 
+                  n_steps=3)
 
-    n_episodes=2000     # n_episodes (int): maximum number of training episodes
-    max_t=1000          # max_t (int): maximum number of timesteps per episode
-    eps_start=1.0       # eps_start (float): starting value of epsilon, for epsilon-greedy action selection
-    eps_end=0.01        # eps_end (float): minimum value of epsilon
-    eps_decay=0.995     # eps_decay (float): multiplicative factor (per episode) for decreasing epsilon 
+    n_episodes = 2000     # n_episodes (int): maximum number of training episodes
+    max_t = 1000          # max_t (int): maximum number of timesteps per episode
+ 
+    eps_start = 0.0 if agent.use_noisy_nets else 1.0          # eps_start (float): starting value of epsilon, for epsilon-greedy action selection
+    eps_end = 0.0 if agent.use_noisy_nets else 0.01           # eps_end (float): minimum value of epsilon
+    eps_decay = 1.0 if not agent.use_noisy_nets else 0.995    # eps_decay (float): multiplicative factor (per episode) for decreasing epsilon 
 
     scores = []                        # list containing scores from each episode
     scores_window = deque(maxlen=100)  # last 100 scores
