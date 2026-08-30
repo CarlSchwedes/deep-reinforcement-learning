@@ -2,7 +2,7 @@ import numpy as np
 import random
 from collections import namedtuple, deque
 
-from model import QNetwork, DuelingQNetwork
+from model import QNetwork, DuelingQNetwork, DistributionalDuelingNoisyQNetwork
 
 import torch
 import torch.nn.functional as F
@@ -23,7 +23,16 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class Agent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, use_prioritized_replay=False, use_ddqn_dueling_network=False, use_replay_start_size=False, use_noisy_nets=False, n_steps=1):
+    def __init__(self, 
+                 state_size, 
+                 action_size, 
+                 use_prioritized_replay=False, 
+                 use_ddqn_dueling_network=False, 
+                 use_replay_start_size=False, 
+                 use_noisy_nets=False, 
+                 n_steps=1,
+                 use_distributional_rl=False
+                ):
         """Initialize an Agent object.
         
         Params
@@ -35,6 +44,7 @@ class Agent():
             use_replay_start_size (bool): whether to use a warmup period before learning from replay
             use_noisy_nets (bool): whether to use Noisy Networks
             n_steps (int): number of steps for n-step returns (default is 1 for standard DQN)
+            use_distributional_rl (bool): whether to use Distributional RL
         """
         self.state_size = state_size
         self.action_size = action_size
@@ -42,23 +52,35 @@ class Agent():
         self.use_ddqn_dueling_network = use_ddqn_dueling_network
         self.use_replay_start_size = use_replay_start_size
         self.use_noisy_nets = use_noisy_nets
+        self.use_distributional_rl = use_distributional_rl
 
         if self.use_replay_start_size:
             self.replay_start_size = REPLAY_START_SIZE if self.use_replay_start_size else BATCH_SIZE
 
-        if self.use_ddqn_dueling_network:
-            self.qnetwork_local = DuelingQNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
-            self.qnetwork_target = DuelingQNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
+        if self.use_distributional_rl:
+            # For Categorical Distributional RL (C51)
+            self.num_atoms = 51
+            self.v_min = -10.0
+            self.v_max = 10.0
+            # Create the static support vector tensor: [-10.0, -9.6, -9.2, ..., +10.0]
+            self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms).to(device)
+
+            self.qnetwork_local = DistributionalDuelingNoisyQNetwork(state_size, action_size, self.num_atoms).to(device)
+            self.qnetwork_target = DistributionalDuelingNoisyQNetwork(state_size, action_size, self.num_atoms).to(device)
         else:
-            self.qnetwork_local = QNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
-            self.qnetwork_target = QNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
+            if self.use_ddqn_dueling_network:
+                self.qnetwork_local = DuelingQNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
+                self.qnetwork_target = DuelingQNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
+            else:
+                self.qnetwork_local = QNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
+                self.qnetwork_target = QNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
 
         self.n_steps = n_steps
 
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # decay_rate=0.995 means LR drops by 0.5% every time step() is called on it
-        self.scheduler = StepLR(self.optimizer, step_size=150, gamma=0.5) # ExponentialLR(self.optimizer, gamma=0.998)
+        self.scheduler = StepLR(self.optimizer, step_size=200, gamma=0.7) # ExponentialLR(self.optimizer, gamma=0.998)
 
         # Chose between Replay Memory and Prioritized Replay Memory
         if self.use_prioritized_replay:
@@ -160,17 +182,23 @@ class Agent():
         state = torch.from_numpy(state).float().unsqueeze(0).to(device)
         self.qnetwork_local.eval()
         with torch.no_grad():
-            action_values = self.qnetwork_local(state)
+            if not self.use_distributional_rl:
+                q_values = self.qnetwork_local(state)
+            else:
+                # Get probability distributions shape: (1, action_size, 51)
+                probs = self.qnetwork_local(state)
+                # Calculate expected values: Q(s,a) = sum(probabilities * atom_values)
+                q_values = (probs * self.support).sum(dim=-1) # Shape: (1, action_size)
         self.qnetwork_local.train()
 
         # If using Noisy Networks, the architecture handles exploration internally via weights.
         # We completely bypass random sampling and act deterministically on the noisy outputs.
         if hasattr(self.qnetwork_local, 'reset_noise'):
-            return np.argmax(action_values.cpu().data.numpy())
+            return np.argmax(q_values .cpu().data.numpy())
 
         # Epsilon-greedy action selection
         if random.random() > eps:
-            return np.argmax(action_values.cpu().data.numpy())
+            return np.argmax(q_values .cpu().data.numpy())
         else:
             return random.choice(np.arange(self.action_size))
 
@@ -185,54 +213,127 @@ class Agent():
             gamma (float): discount factor (GAMMA for 1-step, GAMMA^n for n-step returns)
         """
         states, actions, rewards, next_states, dones = experiences
+        batch_size = states.size(0)
 
-        if self.use_prioritized_replay or self.use_ddqn_dueling_network:
-            # 1. DOUBLE DQN WITH DUELING NETWORKS
-            # Use the LOCAL Dueling network to SELECT the best action index for the next states
-            # (Extracts the index component [1] from PyTorch's max() function)
-            best_actions_next = self.qnetwork_local(next_states).detach().max(1)[1].unsqueeze(1)
-            
-            # Get max predicted Q values (for next states) using the TARGET Dueling network
-            Q_targets_next = self.qnetwork_target(next_states).gather(1, best_actions_next)
-        else:
-            # Get max predicted Q values (for next states)
-            Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
-            
-        # Compute Q targets for current states 
-        Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
-
-        # Get expected Q values from local model
-        Q_expected = self.qnetwork_local(states).gather(1, actions)
-
-        if isinstance(self.memory, PrioritizedReplayBuffer):
-            # Calculate individual TD errors for priority updates
-            # We must detach and convert to a flat numpy array
+        # =========================================================================
+        # PATHWAY A: CATEGORICAL / DISTRIBUTIONAL DQN (C51 / RAINBOW)
+        # =========================================================================
+        if self.use_distributional_rl:
             with torch.no_grad():
-                # Form: (Batch_Size, 1)
-                td_errors_tensor = torch.abs(Q_targets - Q_expected)
-                # Convert to flat NumPy array for the buffer
-                td_errors_numpy = td_errors_tensor.cpu().numpy().flatten()
+                # 1. Fetch upcoming probability matrices from target network (Batch, Actions, Atoms)
+                next_probs = self.qnetwork_target(next_states) 
+                
+                # 2. DDQN Selection: Find the best action using the LOCAL network expected values
+                # Q(s,a) = sum(probabilities * support_values)
+                next_q_values = (self.qnetwork_local(next_states) * self.support).sum(dim=-1)
+                best_actions_next = next_q_values.max(1)[1].unsqueeze(1).unsqueeze(2) 
+                best_actions_next = best_actions_next.expand(batch_size, 1, self.num_atoms)
+                
+                # 3. Gather target distribution matching the chosen actions
+                next_probs_best = next_probs.gather(1, best_actions_next).squeeze(1) # (Batch, Atoms)
 
-            self.memory.update_priorities(indices, td_errors_numpy)
+                # 4. Perform Bellman Projection for Distributions: Tz = r + gamma^n * z
+                delta_z = (self.v_max - self.v_min) / (self.num_atoms - 1)
+                Tz = rewards + (gamma * self.support.unsqueeze(0) * (1 - dones))
+                Tz = Tz.clamp(min=self.v_min, max=self.v_max)
+                
+                # Calculate corresponding histogram bin boundaries
+                b = (Tz - self.v_min) / delta_z
+                l = b.floor().long()
+                u = b.ceil().long()
 
-            # Calculate weighted Mean Squared Error loss using the IS weights
-            # We square the differences element-wise, multiply by is_weights, then take the mean
-            loss = (is_weights * (Q_expected - Q_targets) ** 2).mean()
+                # Fix clipping boundaries if target calculations land exactly on whole bounds
+                l[(u == l) & (l > 0)] -= 1
+                u[(u == l) & (u < self.num_atoms - 1)] += 1
+
+                # Accumulate values into the target categorical template array (m)
+                m = states.new_zeros(batch_size, self.num_atoms)
+                offset = torch.linspace(0, (batch_size - 1) * self.num_atoms, batch_size).long().unsqueeze(1).to(device)
+                m.view(-1).index_add_(0, (l + offset).view(-1), (next_probs_best * (u.float() - b)).view(-1))
+                m.view(-1).index_add_(0, (u + offset).view(-1), (next_probs_best * (b - l.float())).view(-1))
+
+            # 5. Extract current distributions for actions executed from local network
+            current_probs = self.qnetwork_local(states)
+            actions_expanded = actions.unsqueeze(2).expand(batch_size, 1, self.num_atoms)
+            current_probs_taken = current_probs.gather(1, actions_expanded).squeeze(1)
+
+            # Prevent structural log(0) NaN drops via strict lower bound boundary clamping
+            current_probs_taken = torch.clamp(current_probs_taken, min=1e-5)
+
+            # Categorical Cross-Entropy works as the absolute TD-error signal profile for PER tracking
+            td_errors = -(m * current_probs_taken.log()).sum(dim=-1)
+            
+            # Loss assignment (Apply importance sampling weights if PER is running)
+            if isinstance(self.memory, PrioritizedReplayBuffer):
+                loss = (is_weights.squeeze() * td_errors).mean()
+                self.memory.update_priorities(indices, td_errors.detach().cpu().numpy().flatten())
+            else:
+                loss = td_errors.mean()
+
+            # Backprop updates
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.qnetwork_local.parameters(), max_norm=1.0)
+            self.optimizer.step()
+
+            self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
+
+            # Calculate a reconstructed scalar expectation metric for TensorBoard compatibility
+            with torch.no_grad():
+                avg_q_out = (current_probs_taken * self.support).sum(dim=-1).mean().item()
+            return loss.item(), avg_q_out
+
+        # =========================================================================
+        # PATHWAY B: STANDARD SCALAR VALUE-BASED DQN (LEGACY RUNTIMES)
+        # =========================================================================
         else:
-            # Standard MSE loss for uniform sampling
-            loss = F.mse_loss(Q_expected, Q_targets)
+            if self.use_prioritized_replay or self.use_ddqn_dueling_network:
+                # 1. DOUBLE DQN WITH DUELING NETWORKS
+                # Use the LOCAL Dueling network to SELECT the best action index for the next states
+                # (Extracts the index component [1] from PyTorch's max() function)
+                best_actions_next = self.qnetwork_local(next_states).detach().max(1)[1].unsqueeze(1)
+                
+                # Get max predicted Q values (for next states) using the TARGET Dueling network
+                Q_targets_next = self.qnetwork_target(next_states).gather(1, best_actions_next)
+            else:
+                # Get max predicted Q values (for next states)
+                Q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+                
+            # Compute Q targets for current states 
+            Q_targets = rewards + (gamma * Q_targets_next * (1 - dones))
 
-        # Minimize the loss
-        self.optimizer.zero_grad()
-        loss.backward()
-        # Clip gradients to avoid exploding gradients
-        torch.nn.utils.clip_grad_norm_(self.qnetwork_local.parameters(), max_norm=1.0)
-        self.optimizer.step()
+            # Get expected Q values from local model
+            Q_expected = self.qnetwork_local(states).gather(1, actions)
 
-        # Update target network
-        self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
+            if isinstance(self.memory, PrioritizedReplayBuffer):
+                # Calculate individual TD errors for priority updates
+                # We must detach and convert to a flat numpy array
+                with torch.no_grad():
+                    # Form: (Batch_Size, 1)
+                    td_errors_tensor = torch.abs(Q_targets - Q_expected)
+                    # Convert to flat NumPy array for the buffer
+                    td_errors_numpy = td_errors_tensor.cpu().numpy().flatten()
 
-        return loss.item(), Q_expected.mean().item()
+                self.memory.update_priorities(indices, td_errors_numpy)
+
+                # Calculate weighted Mean Squared Error loss using the IS weights
+                # We square the differences element-wise, multiply by is_weights, then take the mean
+                loss = (is_weights * (Q_expected - Q_targets) ** 2).mean()
+            else:
+                # Standard MSE loss for uniform sampling
+                loss = F.mse_loss(Q_expected, Q_targets)
+
+            # Minimize the loss
+            self.optimizer.zero_grad()
+            loss.backward()
+            # Clip gradients to avoid exploding gradients
+            torch.nn.utils.clip_grad_norm_(self.qnetwork_local.parameters(), max_norm=1.0)
+            self.optimizer.step()
+
+            # Update target network
+            self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
+
+            return loss.item(), Q_expected.mean().item()
         
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.

@@ -208,16 +208,21 @@ All other layers remain deterministic; only the output layer(s) introduce learne
 
 Reported result:
 
-- Environment solved in: 371 episodes
-- Average score over last 100 episodes at solve time: 13.01
+- DQN Rainbow improvements: 
+   - PER (replaces random uniform sampling by Importance Sampling (weights (β)), ranks transitions 
+   by absolute Temporal Difference (TD) errors)
+   - Duelling-DQN (State-Value stream V(s), Action-Advantage stream A(s,a))
+   - Double-DQN (eradicates state overestimation bias)
+   - n-Step returns (accumulates rewards over n consecutive future steps -> upd. target)
+   - Noisy-Networks (replaces ε-greedy exploration)
+   - Categorical DQN (Distributional RL / C51) (replaces average expected reward by a probability distribution 
+   over all possible future rewards)
 
     ```text
-   Episode 100     Average Score: 1.008    LR: 0.000200
-   Episode 200     Average Score: 4.71     LR: 0.000100
-   Episode 300     Average Score: 7.58     LR: 0.000050
-   Episode 400     Average Score: 10.96    LR: 0.000050
-   Episode 471     Average Score: 13.03    LR: 0.000025
-   Environment solved in 371 episodes!     Average Score: 13.03
+   Episode 100     Average Score: 1.537    LR: 0.000200
+   Episode 200     Average Score: 12.42    LR: 0.000160
+   Episode 213     Average Score: 13.04    LR: 0.000160
+   Environment solved in 113 episodes!     Average Score: 13.04
     ```
 
 ### Optional pixel-based (CNN) training

@@ -156,4 +156,48 @@ class DuelingQNetwork(nn.Module):
         self.value_out.reset_noise()
         self.advantage_fc.reset_noise()
         self.advantage_out.reset_noise()
+
+
+class DistributionalDuelingNoisyQNetwork(nn.Module):
+    """Full Rainbow Head: Distributional + Dueling + Noisy Network."""
+
+    def __init__(self, state_size, action_size, num_atoms=51, fc1_units=64, fc2_units=64):
+        super(DistributionalDuelingNoisyQNetwork, self).__init__()
+        self.action_size = action_size
+        self.num_atoms = num_atoms
         
+        # Shared input feature layer
+        self.feature_layer = nn.Linear(state_size, fc1_units)
+        
+        # Dueling Streams with NoisyLinear - OUTPUTS EXPANDED TO ATOMS:
+        # Value stream outputs 51 atoms (representing the baseline state distribution)
+        self.value_fc = NoisyLinear(fc1_units, fc2_units)
+        self.value_out = NoisyLinear(fc2_units, num_atoms)
+        
+        # Advantage stream outputs action_size * num_atoms (4 * 51 atoms)
+        self.advantage_fc = NoisyLinear(fc1_units, fc2_units)
+        self.advantage_out = NoisyLinear(fc2_units, action_size * num_atoms)
+
+    def forward(self, state):
+        x = F.relu(self.feature_layer(state))
+        
+        # Calculate streams and reshape into tensor structures
+        v = F.relu(self.value_fc(x))
+        value = self.value_out(v).view(-1, 1, self.num_atoms) # Shape: (Batch, 1, 51)
+        
+        a = F.relu(self.advantage_fc(x))
+        advantage = self.advantage_out(a).view(-1, self.action_size, self.num_atoms) # Shape: (Batch, 4, 51)
+        
+        # Combine value and advantage streams on an atom-by-atom level (max aggregation)
+        q_dist = value + (advantage - advantage.mean(dim=1, keepdim=True)) # Shape: (Batch, 4, 51)
+        
+        # Convert raw logits into clean probabilities across the atom axis using Softmax
+        probs = F.softmax(q_dist, dim=-1) 
+        return probs # Returns distribution matrices: (Batch, Action_Size, Atoms)
+
+    def reset_noise(self):
+        """Reset noise buffers inside all parameter layers."""
+        self.value_fc.reset_noise()
+        self.value_out.reset_noise()
+        self.advantage_fc.reset_noise()
+        self.advantage_out.reset_noise()
