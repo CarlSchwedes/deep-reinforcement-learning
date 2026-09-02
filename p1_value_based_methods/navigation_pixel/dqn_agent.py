@@ -16,12 +16,16 @@ TAU = 1e-3                  # for soft update of target parameters
 LR = 2e-4                   # learning rate, 2.5e4 for RMSprop, 2e-4 for Adam
 IS_CNN = True               # whether to use CNN for pixel-based input
 UPDATE_EVERY = 4            # how often to update the network
-REPLAY_START_SIZE = 1000    # warmup before learning from replay
+REPLAY_START_SIZE = 3e3     # warmup before learning from replay
 
 # Prioritized Experience Replay (PER) parameters
-ALPHA = 0.4                  # PER alpha parameter (0 = uniform, 1 = full prioritization)
+ALPHA = 0.5                  # PER alpha parameter (0 = uniform, 1 = full prioritization)
 BETA_START = 0.4            # PER beta parameter (importance-sampling weight)
 BETA_FRAMES = 100000        # Number of frames over which beta will be annealed from BETA_START to 1.0
+
+# Learning rate scheduler parameters
+LR_STEP_SIZE = 400        # Number of steps before reducing the learning rate
+LR_GAMMA = 0.8            # Multiplicative factor for reducing the learning rate
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -66,9 +70,9 @@ class Agent():
         if self.use_distributional_rl:
             # For Categorical Distributional RL (C51)
             self.num_atoms = 51
-            self.v_min = -10.0
-            self.v_max = 10.0
-            # Create the static support vector tensor: [-10.0, -9.6, -9.2, ..., +10.0]
+            self.v_min = -13.0
+            self.v_max = 13.0
+            # Create the static support vector tensor: [-13.0, -12.6, -12.2, ..., +13.0]
             self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms).to(device)
 
             self.qnetwork_local = DistributionalDuelingQNetwork(state_size, action_size, num_atoms=self.num_atoms, use_noisy_nets=self.use_noisy_nets).to(device)
@@ -87,7 +91,7 @@ class Agent():
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # decay_rate=0.995 means LR drops by 0.5% every time step() is called on it
-        self.scheduler = StepLR(self.optimizer, step_size=400, gamma=0.8) # ExponentialLR(self.optimizer, gamma=0.998)
+        self.scheduler = StepLR(self.optimizer, step_size=LR_STEP_SIZE, gamma=LR_GAMMA) # ExponentialLR(self.optimizer, gamma=0.998)
 
         # Chose between Replay Memory and Prioritized Replay Memory
         if self.use_prioritized_replay:
@@ -269,14 +273,18 @@ class Agent():
             current_probs_taken = torch.clamp(current_probs_taken, min=1e-5)
 
             # Categorical Cross-Entropy works as the absolute TD-error signal profile for PER tracking
-            td_errors = -(m * current_probs_taken.log()).sum(dim=-1)
+            td_errors_tensor = -(m * current_probs_taken.log()).sum(dim=-1)
             
+            with torch.no_grad():    
+                td_errors_numpy = td_errors_tensor.detach().cpu().numpy().flatten() 
+                td_errors_clipped = np.clip(td_errors_numpy, a_min=1e-5, a_max=1.0)  # Clip TD-errors to avoid extreme values
+
             # Loss assignment (Apply importance sampling weights if PER is running)
             if isinstance(self.memory, PrioritizedReplayBuffer):
-                loss = (is_weights.squeeze() * td_errors).mean()
-                self.memory.update_priorities(indices, td_errors.detach().cpu().numpy().flatten())
+                loss = (is_weights.squeeze() * td_errors_tensor).mean()
+                self.memory.update_priorities(indices, td_errors_clipped)
             else:
-                loss = td_errors.mean()
+                loss = td_errors_tensor.mean()
 
             # Backprop updates
             self.optimizer.zero_grad()
@@ -321,6 +329,7 @@ class Agent():
                     td_errors_tensor = torch.abs(Q_targets - Q_expected)
                     # Convert to flat NumPy array for the buffer
                     td_errors_numpy = td_errors_tensor.cpu().numpy().flatten()
+                    td_errors_numpy = np.clip(td_errors_numpy, a_min=1e-5, a_max=1.0)  # Clip TD-errors to avoid extreme values
 
                 self.memory.update_priorities(indices, td_errors_numpy)
 

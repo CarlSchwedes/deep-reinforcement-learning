@@ -100,12 +100,12 @@ def main():
         torch.cuda.manual_seed_all(seed)
 
     agent = Agent(
-        state_size=state_size, 
-        action_size=action_size, 
-        use_prioritized_replay=True, 
-        use_dueling_network=True, 
-        use_replay_start_size=True, 
-        use_noisy_nets=True, 
+        state_size=state_size,
+        action_size=action_size,
+        use_prioritized_replay=True,
+        use_dueling_network=True,
+        use_replay_start_size=True,
+        use_noisy_nets=True,
         n_steps=3,
         use_distributional_rl=True
     )
