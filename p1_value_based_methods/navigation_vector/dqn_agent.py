@@ -80,7 +80,7 @@ class Agent():
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # decay_rate=0.995 means LR drops by 0.5% every time step() is called on it
-        self.scheduler = StepLR(self.optimizer, step_size=200, gamma=0.7) # ExponentialLR(self.optimizer, gamma=0.998)
+        self.scheduler = StepLR(self.optimizer, step_size=200, gamma=0.8) # ExponentialLR(self.optimizer, gamma=0.998)
 
         # Chose between Replay Memory and Prioritized Replay Memory
         if self.use_prioritized_replay:

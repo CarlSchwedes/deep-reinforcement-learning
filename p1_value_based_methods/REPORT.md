@@ -57,6 +57,7 @@ Code references:
 - `use_noisy_nets` (default: False) – Enable Noisy Networks for learned exploration
 - `use_dueling` (default: False) – Enable Dueling Network Architecture (separate value/advantage streams)
 - `n_steps` (default: 1) – Number of steps for N-step returns (1 = standard 1-step DQN)
+- `distributional_rl` (default: False) - Enable Distributional RL (C51) (reward maximization by using probability distributions)
 
 Full Rainbow-style usage in notebook:
 ```python
@@ -65,12 +66,13 @@ agent = Agent(state_size=37, action_size=4, seed=0,
               use_prioritized=True,
               use_noisy_nets=True,
               use_dueling=True,
+              use_distributional_rl=True,
               n_steps=3)
 ```
 
 ### Shared/default values
 
-- BUFFER_SIZE = 1e6
+- BUFFER_SIZE = 4e4
 - BATCH_SIZE = 64
 - GAMMA = 0.99
 - TAU = 1e-3
@@ -201,13 +203,6 @@ All other layers remain deterministic; only the output layer(s) introduce learne
 
 ## 5. Reward Plot and Solve Result
 
-### Vector-state (MLP) training
-- Notebook: navigation_vector/Navigation.ipynb
-
-![Training Rewards: Vector-State](reports/navigation_vector_score.png)
-
-Reported result:
-
 - DQN Rainbow improvements: 
    - PER (replaces random uniform sampling by Importance Sampling (weights (β)), ranks transitions 
    by absolute Temporal Difference (TD) errors)
@@ -218,6 +213,13 @@ Reported result:
    - Categorical DQN (Distributional RL / C51) (replaces average expected reward by a probability distribution 
    over all possible future rewards)
 
+### Vector-state (MLP) training
+- Script: navigation_vector/main.py
+
+![Training Rewards: Vector-State](reports/navigation_vector_score.png)
+
+Reported result:
+
     ```text
    Episode 100     Average Score: 1.537    LR: 0.000200
    Episode 200     Average Score: 12.42    LR: 0.000160
@@ -226,12 +228,11 @@ Reported result:
     ```
 
 ### Optional pixel-based (CNN) training
-- Notebook: navigation_pixel/Navigation_Pixels.ipynb
+- Script: navigation_pixel/main.py
 
 ![Training Rewards: Pixel-State](reports/navigation_pixel_score.png)
 
-- Environment solved in: <N> episodes
-- Average score over last 100 episodes at solve time: <score>
+Reported result:
 
     ```text
     Episode 100	Average Score: ...
@@ -262,20 +263,17 @@ All major Rainbow DQN components have been implemented. Remaining areas to explo
 2. Better visual preprocessing
 	- Frame skipping and max-pooling over frames (Atari-style), if compatible with the VisualBanana environment.
 
-3. Distributional RL (C51 / QR-DQN)
-	- Model the full return distribution rather than its expectation, which can improve stability and learning signal.
-
-4. Prioritized replay beta annealing schedule
+3. Prioritized replay beta annealing schedule
 	- Currently PER_BETA is fixed at 0.4; annealing it to 1.0 over training is the standard Rainbow practice.
 
 ### Previously Completed Improvements
 
-- **Double DQN** (`use_double_dqn`) – Reduces overestimation via decoupled action selection/evaluation.
 - **Prioritized Experience Replay** (`use_prioritized`) – Samples transitions by TD-error magnitude with IS correction.
-- **Noisy Networks** (`use_noisy_nets`) – Replaces epsilon-greedy with learned parameter noise for exploration.
+- **Double DQN** (`use_double_dqn`) – Reduces overestimation via decoupled action selection/evaluation.
 - **Dueling Network Architecture** (`use_dueling`) – Separates value and advantage streams in both MLP and CNN variants.
+- **Noisy Networks** (`use_noisy_nets`) – Replaces epsilon-greedy with learned parameter noise for exploration.
 - **N-step Returns** (`n_steps`) – Propagates multi-step discounted rewards before bootstrapping.
-
+- **Distributional RL (C51)**
 
 ## 8. Reproducibility
 
