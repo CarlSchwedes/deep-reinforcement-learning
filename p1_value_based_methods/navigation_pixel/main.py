@@ -6,6 +6,7 @@ from unityagents import UnityEnvironment
 
 import random
 import numpy as np
+from pathlib import Path
 from collections import deque
 import numpy as np
 import matplotlib.pyplot as plt
@@ -102,7 +103,7 @@ def main():
         state_size=state_size, 
         action_size=action_size, 
         use_prioritized_replay=True, 
-        use_ddqn_dueling_network=True, 
+        use_dueling_network=True, 
         use_replay_start_size=True, 
         use_noisy_nets=True, 
         n_steps=3,
@@ -174,9 +175,8 @@ def main():
             if done or time_out:
                 break 
 
-        scores_window.append(score)       # save most recent score
-
-        scores.append(score)              # save most recent score
+        scores_window.append(score)
+        scores.append(score)
         eps = max(eps_end, eps_decay*eps) # decrease epsilon
 
         current_lr = agent.lr_step()  # Step the learning rate scheduler and get the current LR
@@ -198,12 +198,12 @@ def main():
         print('\rEpisode {}\tAverage Score: {:.2f}\tLR: {:.6f}'.format(i_episode, np.mean(scores_window), current_lr), end="")
         if i_episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}\tLR: {:.6f}'.format(i_episode, np.mean(scores_window), current_lr))
-            torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
+            torch.save(agent.qnetwork_local.state_dict(), Path(__file__).parent / 'checkpoint.pth')
             plt.plot(np.arange(len(scores)), scores)
             plt.savefig('p1_value_based_methods/reports/navigation_pixel_score.png')
         if np.mean(scores_window) >= 13.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
-            torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
+            torch.save(agent.qnetwork_local.state_dict(), Path(__file__).parent / 'checkpoint.pth')
             break
 
         close_logger(logger)

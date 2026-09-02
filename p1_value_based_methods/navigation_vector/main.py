@@ -3,6 +3,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import torch
 import random
 import numpy as np
+from pathlib import Path
 from collections import deque
 import numpy as np
 import matplotlib.pyplot as plt
@@ -134,7 +135,7 @@ def main():
             print('\rEpisode {}\tAverage Score: {:.2f}\tLR: {:.6f}'.format(i_episode, np.mean(scores_window), current_lr))
         if np.mean(scores_window) >= 13.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
-            torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
+            torch.save(agent.qnetwork_local.state_dict(), Path(__file__).parent / 'checkpoint.pth')
             break
 
         close_logger(logger)

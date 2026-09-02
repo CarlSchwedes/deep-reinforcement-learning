@@ -10,7 +10,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 
 BUFFER_SIZE = int(4e4)      # replay buffer size
-BATCH_SIZE = 64             # minibatch size
+BATCH_SIZE = 128            # minibatch size
 GAMMA = 0.99                # discount factor
 TAU = 1e-3                  # for soft update of target parameters
 LR = 2e-4                   # learning rate, 2.5e4 for RMSprop, 2e-4 for Adam
@@ -18,19 +18,24 @@ IS_CNN = True               # whether to use CNN for pixel-based input
 UPDATE_EVERY = 4            # how often to update the network
 REPLAY_START_SIZE = 1000    # warmup before learning from replay
 
+# Prioritized Experience Replay (PER) parameters
+ALPHA = 0.4                  # PER alpha parameter (0 = uniform, 1 = full prioritization)
+BETA_START = 0.4            # PER beta parameter (importance-sampling weight)
+BETA_FRAMES = 100000        # Number of frames over which beta will be annealed from BETA_START to 1.0
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class Agent():
     """Interacts with and learns from the environment."""
 
-    def __init__(self, 
-                 state_size, 
-                 action_size, 
-                 use_prioritized_replay=False, 
-                 use_ddqn_dueling_network=False, 
-                 use_replay_start_size=False, 
-                 use_noisy_nets=False, 
+    def __init__(self,
+                 state_size,
+                 action_size,
+                 use_prioritized_replay=False,
+                 use_dueling_network=False,
+                 use_replay_start_size=False,
+                 use_noisy_nets=False,
                  n_steps=1,
                  use_distributional_rl=False
                 ):
@@ -41,7 +46,7 @@ class Agent():
             state_size (int): dimension of each state
             action_size (int): dimension of each action
             use_prioritized_replay (bool): whether to use Prioritized Experience Replay
-            use_ddqn_dueling_network (bool): whether to use Double DQN with Dueling Networks
+            use_dueling_network (bool): whether to use Dueling Networks
             use_replay_start_size (bool): whether to use a warmup period before learning from replay
             use_noisy_nets (bool): whether to use Noisy Networks
             n_steps (int): number of steps for n-step returns (default is 1 for standard DQN)
@@ -50,7 +55,7 @@ class Agent():
         self.state_size = state_size
         self.action_size = action_size
         self.use_prioritized_replay = use_prioritized_replay
-        self.use_ddqn_dueling_network = use_ddqn_dueling_network
+        self.use_dueling_network = use_dueling_network
         self.use_replay_start_size = use_replay_start_size
         self.use_noisy_nets = use_noisy_nets
         self.use_distributional_rl = use_distributional_rl
@@ -69,7 +74,7 @@ class Agent():
             self.qnetwork_local = DistributionalDuelingQNetwork(state_size, action_size, num_atoms=self.num_atoms, use_noisy_nets=self.use_noisy_nets).to(device)
             self.qnetwork_target = DistributionalDuelingQNetwork(state_size, action_size, num_atoms=self.num_atoms, use_noisy_nets=self.use_noisy_nets).to(device)
         else:
-            if self.use_ddqn_dueling_network:
+            if self.use_dueling_network:
                 self.qnetwork_local = DuelingQNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
                 self.qnetwork_target = DuelingQNetwork(state_size, action_size, use_noisy_nets=self.use_noisy_nets).to(device)
             else:
@@ -82,11 +87,11 @@ class Agent():
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # decay_rate=0.995 means LR drops by 0.5% every time step() is called on it
-        self.scheduler = StepLR(self.optimizer, step_size=500, gamma=0.8) # ExponentialLR(self.optimizer, gamma=0.998)
+        self.scheduler = StepLR(self.optimizer, step_size=400, gamma=0.8) # ExponentialLR(self.optimizer, gamma=0.998)
 
         # Chose between Replay Memory and Prioritized Replay Memory
         if self.use_prioritized_replay:
-            self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
+            self.memory = PrioritizedReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, alpha=ALPHA, beta_start=BETA_START, beta_frames=BETA_FRAMES)
         else:
             self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
         # Initialize time step (for updating every UPDATE_EVERY steps)
@@ -290,7 +295,7 @@ class Agent():
         # PATHWAY B: STANDARD SCALAR VALUE-BASED DQN (LEGACY RUNTIMES)
         # =========================================================================
         else:
-            if self.use_prioritized_replay or self.use_ddqn_dueling_network:
+            if self.use_prioritized_replay or self.use_dueling_network:
                 # 1. DOUBLE DQN WITH DUELING NETWORKS
                 # Use the LOCAL Dueling network to SELECT the best action index for the next states
                 # (Extracts the index component [1] from PyTorch's max() function)
