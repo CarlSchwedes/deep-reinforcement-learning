@@ -19,7 +19,7 @@ UPDATE_EVERY = 4            # how often to update the network
 REPLAY_START_SIZE = 3e3     # warmup before learning from replay
 
 # Prioritized Experience Replay (PER) parameters
-ALPHA = 0.5                  # PER alpha parameter (0 = uniform, 1 = full prioritization)
+ALPHA = 0.4                  # PER alpha parameter (0 = uniform, 1 = full prioritization)
 BETA_START = 0.4            # PER beta parameter (importance-sampling weight)
 BETA_FRAMES = 100000        # Number of frames over which beta will be annealed from BETA_START to 1.0
 
@@ -141,14 +141,14 @@ class Agent():
 
                 if self.use_prioritized_replay:
                     experiences, indices, is_weights = self.memory.sample()
-                    loss, avg_q = self.learn(experiences, indices, is_weights, gamma_n)
+                    loss, avg_q, batch_td_errors = self.learn(experiences, indices, is_weights, gamma_n)
                 else:
                     experiences = self.memory.sample()
-                    loss, avg_q = self.learn(experiences, None, None, gamma_n)
-                
-                return loss, avg_q
-        # in case no update is performed for this iteration, return None for loss and avg_q
-        return None, None
+                    loss, avg_q, _ = self.learn(experiences, None, None, gamma_n)
+
+                return loss, avg_q, batch_td_errors if self.use_prioritized_replay else _
+        # in case no update is performed for this iteration, return None for loss, avg_q and td_errors
+        return None, None, None
 
     def _get_n_step_info(self):
         """Computes the discounted n-step rewards and the final next state."""
@@ -238,7 +238,7 @@ class Agent():
                 # 2. DDQN Selection: Find the best action using the LOCAL network expected values
                 # Q(s,a) = sum(probabilities * support_values)
                 next_q_values = (self.qnetwork_local(next_states) * self.support).sum(dim=-1)
-                best_actions_next = next_q_values.max(1)[1].unsqueeze(1).unsqueeze(2) 
+                best_actions_next = next_q_values.max(1)[1].unsqueeze(1).unsqueeze(2)
                 best_actions_next = best_actions_next.expand(batch_size, 1, self.num_atoms)
                 
                 # 3. Gather target distribution matching the chosen actions
@@ -275,14 +275,14 @@ class Agent():
             # Categorical Cross-Entropy works as the absolute TD-error signal profile for PER tracking
             td_errors_tensor = -(m * current_probs_taken.log()).sum(dim=-1)
             
-            with torch.no_grad():    
-                td_errors_numpy = td_errors_tensor.detach().cpu().numpy().flatten() 
-                td_errors_clipped = np.clip(td_errors_numpy, a_min=1e-5, a_max=1.0)  # Clip TD-errors to avoid extreme values
+            with torch.no_grad():
+                td_errors_numpy = td_errors_tensor.detach().cpu().numpy().flatten()
+                td_errors = td_errors_numpy + 1e-5 # use gradient clip instead of np.clip(td_errors_numpy, a_min=1e-5, a_max=1.0)  # Clip TD-errors to avoid extreme values
 
             # Loss assignment (Apply importance sampling weights if PER is running)
             if isinstance(self.memory, PrioritizedReplayBuffer):
                 loss = (is_weights.squeeze() * td_errors_tensor).mean()
-                self.memory.update_priorities(indices, td_errors_clipped)
+                self.memory.update_priorities(indices, td_errors)
             else:
                 loss = td_errors_tensor.mean()
 
@@ -297,7 +297,7 @@ class Agent():
             # Calculate a reconstructed scalar expectation metric for TensorBoard compatibility
             with torch.no_grad():
                 avg_q_out = (current_probs_taken * self.support).sum(dim=-1).mean().item()
-            return loss.item(), avg_q_out
+            return loss.item(), avg_q_out, td_errors_numpy
 
         # =========================================================================
         # PATHWAY B: STANDARD SCALAR VALUE-BASED DQN (LEGACY RUNTIMES)
@@ -329,9 +329,9 @@ class Agent():
                     td_errors_tensor = torch.abs(Q_targets - Q_expected)
                     # Convert to flat NumPy array for the buffer
                     td_errors_numpy = td_errors_tensor.cpu().numpy().flatten()
-                    td_errors_numpy = np.clip(td_errors_numpy, a_min=1e-5, a_max=1.0)  # Clip TD-errors to avoid extreme values
+                    td_errors = td_errors_numpy + 1e-5 # use gradient clip instead of np.clip(td_errors_numpy, a_min=1e-5, a_max=1.0)  # Clip TD-errors to avoid extreme values
 
-                self.memory.update_priorities(indices, td_errors_numpy)
+                self.memory.update_priorities(indices, td_errors)
 
                 # Calculate weighted Mean Squared Error loss using the IS weights
                 # We square the differences element-wise, multiply by is_weights, then take the mean
@@ -350,7 +350,7 @@ class Agent():
             # Update target network
             self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
 
-            return loss.item(), Q_expected.mean().item()
+            return loss.item(), Q_expected.mean().item(), td_errors_numpy if isinstance(self.memory, PrioritizedReplayBuffer) else None
         
     def soft_update(self, local_model, target_model, tau):
         """Soft update model parameters.

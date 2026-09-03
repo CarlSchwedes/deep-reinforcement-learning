@@ -12,7 +12,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from dqn_agent import Agent, PrioritizedReplayBuffer
-from utils import init_logger, log_action_distribution, log_behavioral_metrics, log_gradient_norms, log_step_metrics, log_episode_metrics, close_logger, log_per_distribution_plot
+from utils import (
+    init_logger, 
+    log_action_distribution, 
+    log_behavioral_metrics, 
+    log_gradient_norms, 
+    log_step_metrics, 
+    log_episode_metrics, 
+    close_logger, 
+    log_per_distribution_plot, 
+    log_td_error_metrics
+    )
 
 
 class FrameStacker:
@@ -161,8 +171,11 @@ def main():
             # in case of timeout, consider last Q state valid: rewards + gamma * Q_targets_next
             time_out = (t == max_t - 1)
 
-            loss, avg_q = agent.step(state, action, reward, next_state, done)
+            loss, avg_q, batch_td_errors = agent.step(state, action, reward, next_state, done)
             log_step_metrics(logger, loss, avg_q, step_count)
+
+            if batch_td_errors is not None:
+                log_td_error_metrics(logger, batch_td_errors, step_count)
 
             if loss is not None:
                 log_gradient_norms(logger, agent.qnetwork_local, step_count)

@@ -73,7 +73,7 @@ agent = Agent(
 
 ### Shared/default values
 - BUFFER_SIZE = 4e4
-- BATCH_SIZE = 64
+- BATCH_SIZE = 64/128 (vector/pixel)
 - GAMMA = 0.99
 - TAU = 1e-3
 - UPDATE_EVERY = 4
@@ -257,7 +257,12 @@ Reported result: (Dueling + Double DQN + PER + Noisy Networks + N-step returns)
 Reported result: (Dueling + Double DQN + PER + Noisy Networks + N-step returns, Distributional RL)
 
     ```text
-    Episode 100	Average Score: ...
+   Episode 100     Average Score: 0.211    LR: 0.000200
+   Episode 200     Average Score: 2.32     LR: 0.000200
+   Episode 300     Average Score: 3.35     LR: 0.000200
+   Episode 400     Average Score: 3.93     LR: 0.000160
+   Episode 476     Average Score: 4.18     LR: 0.000160
+   ...
     Environment solved in <N> episodes!	Average Score: <score>
     ```
 
@@ -301,4 +306,3 @@ To reproduce training:
 2. Run navigation_vector/main.py for vector-state training.
 3. Run navigation_pixel/main.py for optional pixel-based training.
 4. Ensure Unity executable paths match your local machine.
-

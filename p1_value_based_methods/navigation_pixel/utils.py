@@ -90,3 +90,23 @@ def log_gradient_norms(writer, model, step_count):
             total_norm += param_norm.item() ** 2
     total_norm = total_norm ** 0.5
     writer.add_scalar('Train/Gradient_Norm', total_norm, step_count)
+
+def log_td_error_metrics(writer, td_errors_numpy, step_count):
+    """Logs scalar statistics and a distribution histogram of training batch TD-errors."""
+    if len(td_errors_numpy) == 0:
+        return
+
+    # 1. Log scalar markers to monitor absolute training convergence
+    mean_error = np.mean(td_errors_numpy)
+    max_error = np.max(td_errors_numpy)
+    min_error = np.min(td_errors_numpy)
+    
+    writer.add_scalar('Train/TD_Error_Mean', mean_error, step_count)
+    writer.add_scalar('Train/TD_Error_Max', max_error, step_count)
+    writer.add_scalar('Train/TD_Error_Min', min_error, step_count)
+
+    # 2. Log a structural histogram to monitor error polarization inside batches
+    # Filter out microscopic values to keep the histogram bins readable
+    clean_errors = td_errors_numpy[td_errors_numpy > 1e-5]
+    if len(clean_errors) > 0:
+        writer.add_histogram('Train/TD_Error_Batch_Distribution', clean_errors, step_count)
