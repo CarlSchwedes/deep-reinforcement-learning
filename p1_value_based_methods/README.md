@@ -33,33 +33,32 @@ Optional challenge environment in this repository:
 
 ### Getting Started
 
-1. Create and activate a Python virtual environment.
-2. Install package dependencies from the Unity ML-Agents Python package in this repository.
-3. Download and unzip the correct Unity environment executable for your OS.
-4. Verify notebook kernel points to your active environment.
+1. Create and activate a Conda environment using the provided environment.yml.
+2. Download and unzip the correct Unity environment executable for your OS.
+3. Verify notebook kernel points to your active environment.
 
 Example setup commands:
 
 - Windows
 
 ```bash
-py -3.13 -m venv .venv
-.venv\Scripts\activate
-pip install --upgrade pip
-cd python
-pip install .
-cd ..
+conda env create -f environment.yml
+conda activate drl_env_py_3_9
+python --version  # should show Python 3.9.23
 ```
 
 - Linux or macOS
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-cd python
-pip install .
-cd ..
+conda env create -f environment.yml
+conda activate drl_env_py_3_9
+python --version  # should show Python 3.9.23
+```
+
+Run tensorboard to visualize training metrics: (open new terminal, navigate to project root, and run)
+
+```bash
+tensorboard --logdir runs
 ```
 
 Unity environment binaries (download one):
@@ -78,21 +77,37 @@ Place extracted folders under p1_navigation.
 
 ### Instructions to Train the Agent
 
+**Primary Training Method: Python Scripts**
+
+The main training implementation uses dedicated Python scripts for reproducible, scalable training runs:
+
 Vector-state training (required project path):
-1. Open p1_navigation/Navigation.ipynb
-2. Set the correct Unity executable path in the environment initialization cell.
-3. Run notebook cells from top to bottom.
-4. Training saves checkpoint.pth when solve criterion is reached.
+1. Navigate to `navigation_vector/` directory
+2. Edit `main.py` to set the correct Banana environment executable path
+3. Run: `python main.py`
+4. Training saves checkpoint.pth when solve criterion is reached
 
 Pixel-based training (optional challenge path):
-1. Open p1_navigation/Navigation_Pixels.ipynb
-2. Set USE_VISUAL_FEATURES = True for CNN mode, or False to use vector observations with MLP.
-3. Set the correct VisualBanana executable path.
-4. Run notebook cells from top to bottom.
+1. Navigate to `navigation_pixel/` directory
+2. Edit `main.py` to set the correct VisualBanana environment executable path
+3. Run: `python main.py`
+4. Training saves checkpoint.pth when solve criterion is reached
 
-Main implementation files used during training:
-- p1_navigation/dqn_agent.py
-- p1_navigation/model.py
+**Notebooks for Initial Exploration (Ramp-up Phase)**
+
+Jupyter notebooks are available for interactive learning and experimentation:
+- `navigation_vector/Navigation.ipynb` – Vector-state agent development walkthrough
+- `navigation_pixel/Navigation_Pixels.ipynb` – Pixel-state agent development walkthrough
+
+These notebooks provide a guided learning experience before transitioning to the Python scripts.
+
+**Main Implementation Files**
+
+Core implementation used in both scripts and notebooks:
+- `dqn_agent.py` – DQN agent with Rainbow components (PER, Double DQN, Dueling, Noisy Networks, N-step returns, Distributional RL)
+- `model.py` – Neural network architectures (QNetwork, DuelingQNetwork, CNN variants, NoisyLinear layers)
+
+Report plots are placed in `reports/` directory.
 
 ### Report
 
@@ -126,39 +141,25 @@ The labs and projects can be found below.  All of the projects use rich simulati
 
 To set up your python environment to run the code in this repository, follow the instructions below.
 
-1. Create (and activate) a virtual environment named `.venv` with Python 3.13.7 (tested).
+1. Create and activate the Conda environment from the project root `environment.yml` file.
 
-	- __Linux__ or __Mac__: 
+	- __Linux__, __Mac__, or __Windows__: 
 	```bash
-	python3.13 -m venv .venv
-	source .venv/bin/activate
-	python --version  # should show Python 3.13.7
+	conda env create -f environment.yml
+	conda activate drl_env_py_3_9
+	python --version  # should show Python 3.9.23
 	```
-	- __Windows__: 
-	```bash
-	py -3.13 -m venv .venv
-	.venv\Scripts\activate
-	python --version  # should show Python 3.13.7
-	```
+
+The `environment.yml` file includes all dependencies for running DRL agents and Unity ML-Agents, including PyTorch and Jupyter.
 	
-2. Follow the instructions in [this repository](https://github.com/openai/gym) to perform a minimal install of OpenAI gym.  
-	- Install the **box2d** environment group by following the instructions [here](https://github.com/openai/gym#box2d).
-	
-3. Clone the repository (if you haven't already!), and navigate to the `python/` folder.  Then, install several dependencies.
+2. Create an [IPython kernel](http://ipython.readthedocs.io/en/stable/install/kernel_install.html) for the `drl_env_py_3_9` environment.  
 ```bash
-git clone https://github.com/udacity/Value-based-methods.git
-cd Value-based-methods/python
-pip install .
+python -m ipykernel install --user --name drl_env_py_3_9 --display-name "Python (drl_env_py_3_9)"
 ```
 
-4. Create an [IPython kernel](http://ipython.readthedocs.io/en/stable/install/kernel_install.html) for the `.venv` environment.  
-```bash
-python -m ipykernel install --user --name .venv --display-name "Python (.venv)"
-```
+3. Before running code in a notebook, change the kernel to match the `drl_env_py_3_9` environment by using the drop-down `Kernel` menu. 
 
-5. Before running code in a notebook, change the kernel to match the `.venv` environment by using the drop-down `Kernel` menu. 
-
-`drlnd` renamed -> `.venv`
+![Kernel][image2]
 
 ![Kernel][image2]
 
