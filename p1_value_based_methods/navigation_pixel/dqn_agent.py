@@ -289,7 +289,7 @@ class Agent():
             # Backprop updates
             self.optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.qnetwork_local.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(self.qnetwork_local.parameters(), max_norm=2.0)
             self.optimizer.step()
 
             self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)

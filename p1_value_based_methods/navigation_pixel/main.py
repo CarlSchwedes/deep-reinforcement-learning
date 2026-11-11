@@ -132,7 +132,7 @@ def main():
     eps = eps_start                    # initialize epsilon
 
     logger = init_logger("p1_value_based_methods/navigation_pixel/runs", "banana_collector")
-    step_count = 0  # Globaler Schrittzähler für die X-Achse im TensorBoard
+    step_count = 0  # counter for TensorBoard
 
     # plot the scores
     fig = plt.figure()
