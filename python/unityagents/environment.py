@@ -284,7 +284,7 @@ class UnityEnvironment(object):
         memory = {} if memory is None else memory
         text_action = {} if text_action is None else text_action
         if self._loaded and not self._global_done and self._global_done is not None:
-            if isinstance(vector_action, (int, np.int_, float, np.float_, list, np.ndarray)):
+            if isinstance(vector_action, (int, np.int_, float, np.float64, list, np.ndarray)):
                 if self._num_external_brains == 1:
                     vector_action = {self._external_brain_names[0]: vector_action}
                 elif self._num_external_brains > 1:
@@ -296,7 +296,7 @@ class UnityEnvironment(object):
                         "There are no external brains in the environment, "
                         "step cannot take a vector_action input")
 
-            if isinstance(memory, (int, np.int_, float, np.float_, list, np.ndarray)):
+            if isinstance(memory, (int, np.int_, float, np.float64, list, np.ndarray)):
                 if self._num_external_brains == 1:
                     memory = {self._external_brain_names[0]: memory}
                 elif self._num_external_brains > 1:
@@ -406,7 +406,7 @@ class UnityEnvironment(object):
         :param arr: numpy vector.
         :return: flattened list.
         """
-        if isinstance(arr, (int, np.int_, float, np.float_)):
+        if isinstance(arr, (int, np.int_, float, np.float64)):
             arr = [float(arr)]
         if isinstance(arr, np.ndarray):
             arr = arr.tolist()
