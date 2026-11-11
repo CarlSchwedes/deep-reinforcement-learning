@@ -1010,6 +1010,291 @@ $$
 
 This is the gradient estimate used by **REINFORCE**.
 
+##### What's Next?
+
+In this lesson, you've learned about the **REINFORCE algorithm**, which was illustrated using a toy environment with a **discrete action space**.
+
+However, REINFORCE can also be used to solve environments with **continuous action spaces**.
+
+For an environment with a continuous action space, the corresponding policy network can have an output layer that parameterizes a **continuous probability distribution**.
+
+For instance, suppose the output layer of the policy network returns the mean $\mu$ and variance $\sigma^2$ of a normal distribution:
+
+$$
+\mu, \sigma^2 = \pi_\theta(s_t).
+$$
+
+<figure align="center">
+  <img src="img/350px-normal-distribution-pdf.png" width="50%">
+</figure>
+
+
+The policy therefore defines a probability distribution over possible continuous actions:
+
+$$
+\pi_\theta(a_t \mid s_t)
+=
+\mathcal{N}(\mu, \sigma^2).
+$$
+
+To select an action, the agent passes the current state $s_t$ through the policy network. The resulting mean $\mu$ and variance $\sigma^2$ are then used to sample an action from the normal distribution:
+
+$$
+\boxed{
+a_t \sim \mathcal{N}(\mu, \sigma^2)
+}
+$$
+
+Thus, rather than selecting an action from a finite set of possibilities, such as
+
+$$
+a_t \in \{0,1,2\},
+$$
+
+the agent can sample a real-valued action:
+
+$$
+a_t \in \mathbb{R}.
+$$
+
+In theory, the standard REINFORCE algorithm can therefore be applied directly to continuous action spaces.
+
+In practice, however, this approach is unlikely to perform particularly well. To improve performance in continuous action spaces, we need to make some modifications to the basic REINFORCE algorithm. These modifications will be introduced in the upcoming lessons.
+
+
+##### Summary
+
+<figure align="center">
+  <img src="img/REINFORCE_timesteps.png" width="50%">
+</figure>
+
+**REINFORCE** increases the probability of "good" actions and decreases the probability of "bad" actions.
+
+## What Are Policy Gradient Methods?
+
+- **Policy-based methods** are a class of algorithms that search directly for the optimal policy, without simultaneously maintaining value-function estimates.
+- **Policy gradient methods** are a subclass of policy-based methods that estimate the parameters of an optimal policy through gradient ascent.
+- In this lesson, the policy is represented by a neural network. Our goal is to find the network weights $\theta$ that maximize the expected return.
+
+## The Big Picture
+
+The policy gradient method iteratively adjusts the policy network weights to:
+
+- make state-action pairs $(s,a)$ that resulted in **positive returns more likely**, and
+- make state-action pairs $(s,a)$ that resulted in **negative returns less likely**.
+
+In other words, REINFORCE shifts the policy toward actions associated with higher returns.
+
+## Problem Setup
+
+A **trajectory** $\tau$ is a sequence of states and actions:
+
+$$
+\tau =
+(s_0,a_0,\ldots,s_H,a_H,s_{H+1}).
+$$
+
+We use
+
+$$
+R(\tau)
+$$
+
+to denote the return associated with trajectory $\tau$.
+
+Our goal is to find the policy parameters $\theta$ that maximize the **expected return**
+
+$$
+\boxed{
+U(\theta)
+:=
+\sum_\tau
+P(\tau;\theta)R(\tau)
+}
+$$
+
+or, equivalently,
+
+$$
+U(\theta)
+=
+\mathbb{E}_{\tau\sim P(\tau;\theta)}
+\left[R(\tau)\right].
+$$
+
+## REINFORCE
+
+The REINFORCE algorithm can be summarized as follows.
+
+### 1. Collect Trajectories
+
+Use the current policy $\pi_\theta$ to collect $m$ trajectories
+
+$$
+\left\{
+\tau^{(1)},
+\tau^{(2)},
+\ldots,
+\tau^{(m)}
+\right\}
+$$
+
+with horizon $H$.
+
+The $i$-th trajectory is
+
+$$
+\tau^{(i)}
+=
+\left(
+s_0^{(i)},
+a_0^{(i)},
+\ldots,
+s_H^{(i)},
+a_H^{(i)},
+s_{H+1}^{(i)}
+\right).
+$$
+
+### 2. Estimate the Policy Gradient
+
+Use the trajectories to estimate $\nabla_\theta U(\theta)$:
+
+$$
+\boxed{
+\nabla_\theta U(\theta)
+\approx
+\hat{g}
+:=
+\frac{1}{m}
+\sum_{i=1}^{m}
+\sum_{t=0}^{H}
+\nabla_\theta
+\log
+\pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+R\left(\tau^{(i)}\right)
+}
+$$
+
+### 3. Update the Policy
+
+Update the policy parameters using gradient ascent:
+
+$$
+\boxed{
+\theta
+\leftarrow
+\theta + \alpha \hat{g}
+}
+$$
+
+where $\alpha$ is the learning rate.
+
+### 4. Repeat
+
+Repeat steps **1–3** until the policy converges or another stopping criterion is reached.
+
+## Derivation
+
+The **likelihood ratio policy gradient** is
+
+$$
+\boxed{
+\nabla_\theta U(\theta)
+=
+\sum_\tau
+P(\tau;\theta)
+\nabla_\theta
+\log P(\tau;\theta)
+R(\tau)
+}
+$$
+
+which can equivalently be written as an expectation:
+
+$$
+\nabla_\theta U(\theta)
+=
+\mathbb{E}_{\tau\sim P(\tau;\theta)}
+\left[
+\nabla_\theta
+\log P(\tau;\theta)
+R(\tau)
+\right].
+$$
+
+We can approximate this expectation using $m$ sampled trajectories:
+
+$$
+\boxed{
+\nabla_\theta U(\theta)
+\approx
+\frac{1}{m}
+\sum_{i=1}^{m}
+\nabla_\theta
+\log P\left(\tau^{(i)};\theta\right)
+R\left(\tau^{(i)}\right)
+}
+$$
+
+For a trajectory generated by policy $\pi_\theta$, we derived
+
+$$
+\boxed{
+\nabla_\theta
+\log P\left(\tau^{(i)};\theta\right)
+=
+\sum_{t=0}^{H}
+\nabla_\theta
+\log
+\pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+}
+$$
+
+because the environment transition probabilities do not depend on the policy parameters $\theta$.
+
+Substituting this expression into the sample-based gradient estimate gives the REINFORCE estimator:
+
+$$
+\boxed{
+\nabla_\theta U(\theta)
+\approx
+\frac{1}{m}
+\sum_{i=1}^{m}
+\sum_{t=0}^{H}
+\nabla_\theta
+\log
+\pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+R\left(\tau^{(i)}\right)
+}
+$$
+
+## What's Next?
+
+- REINFORCE can be applied to Markov Decision Processes (MDPs) with either **discrete** or **continuous action spaces**.
+- For discrete actions, $\pi_\theta(a\mid s)$ typically represents a categorical probability distribution.
+- For continuous actions, $\pi_\theta(a\mid s)$ can instead represent a continuous probability distribution, such as a Gaussian distribution:
+
+$$
+a_t \sim \mathcal{N}\left(\mu_\theta(s_t),\sigma_\theta^2(s_t)\right).
+$$
+
+
 
 #### Lesson: Proximal Policy Optimization
 In this lesson, you'll learn about Proximal Policy Optimization (PPO), a cutting-edge policy gradient method.
