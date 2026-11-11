@@ -304,8 +304,712 @@ The third part of this nanodegree program covers policy-based methods in deep re
 #### Lesson: Introduction to Policy-Based Methods
 In this lesson, you will learn about methods such as hill climbing, simulated annealing, and adaptive noise scaling. You'll also learn about cross-entropy methods and evolution strategies.
 
+How to find optimal solution without having a value-function?
+-> Policy-Based Methods (How to directly estimate the optimal policy?)
+Deterministic: pi: s -> a
+Stochastic a ~ pi(s,a) = P[a|s]
+
+- Turing action-spaces into continuous action-spaces (optimization problem (finding maxima of continuous function))
+- High-Dimensional Action Spaces (plenty of potential actions to evaluate)
+- try to map a given state to an action directly? 
+  -> something policy based methods try to address efficiently
+  -> reduces computational demand significantly
+
+
+OpenAI Gym's CartPole Example:
+- bipedal repo: https://github.com/alirezamika/bipedal-es
+- evolution strategies: https://github.com/alirezamika/evostra
+- CartPole Methods RL: https://kvfrans.com/simple-algoritms-for-solving-cartpole/
+- OpenAI cartpole code repo: https://github.com/kvfrans/openai-cartpole
+
+
+##### Summary
+
+<figure align="center">
+  <img src="img/intro_policy_based_methods_objective.png" width="50%">
+</figure>
+
+# Policy-Based Methods
+
+- With **value-based methods**, the agent uses its experience with the environment to maintain an estimate of the optimal action-value function. The optimal policy is then obtained from the optimal action-value function estimate.
+- **Policy-based methods** directly learn the optimal policy, without having to maintain a separate value function estimate.
+
+## Policy Function Approximation
+
+- In deep reinforcement learning, it is common to represent the policy with a neural network.
+  - This network takes the environment state as **input**.
+  - If the environment has discrete actions, the **output** layer has a node for each possible action and contains the probability that the agent should select each possible action.
+- The weights in this neural network are initially set to random values. Then, the agent updates the weights as it interacts with (*and learns more about*) the environment.
+
+## More on the Policy
+
+- Policy-based methods can learn either stochastic or deterministic policies, and they can be used to solve environments with either finite or continuous action spaces.
+
+## Hill Climbing
+
+- **Hill climbing** is an iterative algorithm that can be used to find the weights $\theta$ for an optimal policy.
+- At each iteration:
+  1. We slightly perturb the values of the current best estimate for the weights $\theta_{\text{best}}$ to yield a new set of weights.
+  2. These new weights are then used to collect an episode. If the new weights $\theta_{\text{new}}$ result in a higher return than the old weights, then we set
+
+     $$
+     \theta_{\text{best}} \leftarrow \theta_{\text{new}}.
+     $$
+
+## Beyond Hill Climbing
+
+- **Steepest ascent hill climbing** is a variation of hill climbing that chooses a small number of neighboring policies at each iteration and selects the best among them.
+- **Simulated annealing** uses a predefined schedule to control how the policy space is explored and gradually reduces the search radius as we get closer to the optimal solution.
+- **Adaptive noise scaling** decreases the search radius with each iteration when a new best policy is found, and otherwise increases the search radius.
+
+## More Black-Box Optimization
+
+- The **cross-entropy method** iteratively suggests a small number of neighboring policies and uses a small percentage of the best-performing policies to calculate a new estimate.
+- The **evolution strategies** technique considers the return corresponding to each candidate policy. The policy estimate at the next iteration is a weighted sum of all candidate policies, where policies that obtained higher returns are given higher weights.
+
+## Why Policy-Based Methods?
+
+There are three reasons why we consider policy-based methods:
+
+1. **Simplicity:** Policy-based methods directly address the problem at hand, estimating the optimal policy, without having to store a large amount of additional data (i.e., the action values) that may not be useful.
+2. **Stochastic policies:** Unlike value-based methods, policy-based methods can learn true stochastic policies.
+3. **Continuous action spaces:** Policy-based methods are well-suited for continuous action spaces.
+
 #### Lesson: Policy Gradient Methods
 In this lesson, you'll study REINFORCE, along with improvements we can make to lower the variance of policy gradient algorithms.
+
+-> explore the connections between policy gradient methods and supervised learning
+Andrej Karpathy's [famous blog post](https://karpathy.github.io/2016/05/31/rl/).
+
+<figure align="center">
+  <img src="img/policy_based_methods_link_rl_and_supervised_learning_methods.png" width="50%">
+</figure>
+
+##### Problem Setup
+
+<figure align="center">
+  <img src="img/policy_gradient_methods_trajectory_modeling_state_action_sequence.png" width="50%">
+</figure>
+
+###### Important Note
+
+Before moving on, make sure it is clear that the following equation calculates an **expectation**:
+
+$$
+U(\theta) = \sum_{\tau} P(\tau;\theta)R(\tau)
+$$
+
+To see how this corresponds to the **expected return**, note that we have expressed the **return** $R(\tau)$ as a function of the trajectory $\tau$.
+
+We then calculate the weighted average of all possible values that the return $R(\tau)$ can take, where the weights are given by $P(\tau;\theta)$.
+
+Equivalently,
+
+$$
+U(\theta)
+=
+\mathbb{E}_{\tau \sim P(\tau;\theta)}
+\left[R(\tau)\right].
+$$
+
+Here:
+
+- $\theta$ denotes the parameters of the policy.
+- $\tau$ denotes a trajectory.
+- $P(\tau;\theta)$ is the probability of trajectory $\tau$ under the policy parameterized by $\theta$.
+- $R(\tau)$ is the return obtained from trajectory $\tau$.
+- $U(\theta)$ is the expected return under the policy.
+
+###### Why Trajectories?
+
+You may be wondering: *Why are we using trajectories instead of episodes?*
+
+The answer is that maximizing the expected return over trajectories, instead of episodes, allows us to search for optimal policies for both **episodic** and **continuing** tasks.
+
+That said, for many episodic tasks, it often makes sense to use the full episode as the trajectory.
+
+In particular, consider a video game in which the reward is only delivered at the end of the episode. In this case, to estimate the expected return, the trajectory should correspond to the full episode. Otherwise, we do not have enough reward information to meaningfully estimate the expected return.
+
+##### REINFORCE - Algorithm
+
+You've learned that our goal is to find the values of the weights $\theta$ in the neural network that maximize the expected return $U$:
+
+$$
+U(\theta) = \sum_{\tau} P(\tau;\theta)R(\tau),
+$$
+
+where $\tau$ is an arbitrary trajectory.
+
+One way to determine the value of $\theta$ that maximizes this function is through **gradient ascent**. This algorithm is closely related to **gradient descent**, with the following differences:
+
+- Gradient descent is designed to find the **minimum** of a function, whereas gradient ascent is designed to find the **maximum**.
+- Gradient descent steps in the direction of the **negative gradient**, whereas gradient ascent steps in the direction of the **gradient**.
+
+Our update step for gradient ascent is:
+
+$$
+\theta \leftarrow \theta + \alpha \nabla_{\theta} U(\theta),
+$$
+
+where $\alpha$ is the step size, which is generally allowed to decay over time.
+
+Once we know how to calculate or estimate this gradient, we can repeatedly apply this update step in the hope that $\theta$ converges to the value that maximizes $U(\theta)$.
+
+##### Pseudocode
+
+The algorithm described in the video is known as **REINFORCE**. The pseudocode is summarized below.
+
+1. Use the policy $\pi_\theta$ to collect $m$ trajectories
+
+   $$
+   \left\{
+   \tau^{(1)}, \tau^{(2)}, \ldots, \tau^{(m)}
+   \right\}
+   $$
+
+   with horizon $H$. We refer to the $i$-th trajectory as
+
+   $$
+   \tau^{(i)}
+   =
+   \left(
+   s_0^{(i)}, a_0^{(i)}, \ldots,
+   s_H^{(i)}, a_H^{(i)}, s_{H+1}^{(i)}
+   \right).
+   $$
+
+2. Use the trajectories to estimate the gradient $\nabla_\theta U(\theta)$:
+
+   $$
+   \nabla_\theta U(\theta)
+   \approx
+   \hat{g}
+   :=
+   \frac{1}{m}
+   \sum_{i=1}^{m}
+   \sum_{t=0}^{H}
+   \nabla_\theta
+   \log \pi_\theta
+   \left(
+   a_t^{(i)} \mid s_t^{(i)}
+   \right)
+   R\left(\tau^{(i)}\right).
+   $$
+
+3. Update the weights of the policy:
+
+   $$
+   \theta
+   \leftarrow
+   \theta + \alpha \hat{g},
+   $$
+
+   where $\alpha$ is the learning rate (step size).
+
+4. Repeat steps **1–3**.
+
+
+<figure align="center">
+  <img src="img/reinforce_loop.png" width="50%">
+</figure>
+
+##### Derivation
+
+<figure align="center">
+  <img src="img/optimizers_sgd.gif" width="50%">
+</figure>
+
+# Derivation of the REINFORCE Gradient
+
+If you'd like to learn how to derive the equation that we use to approximate the gradient, read the derivation below. Specifically, we want to derive
+
+$$
+\nabla_\theta U(\theta)
+\approx
+\hat{g}
+=
+\frac{1}{m}
+\sum_{i=1}^{m}
+\sum_{t=0}^{H}
+\nabla_\theta
+\log \pi_\theta
+\left(
+a_t^{(i)} \mid s_t^{(i)}
+\right)
+R\left(\tau^{(i)}\right).
+$$
+
+This derivation is **optional** and can be safely skipped.
+
+## Likelihood Ratio Policy Gradient
+
+We begin by exploring how to calculate the gradient $\nabla_\theta U(\theta)$. Recall that
+
+$$
+U(\theta)
+=
+\sum_{\tau}
+P(\tau;\theta)R(\tau).
+$$
+
+Taking the gradient with respect to $\theta$ gives
+
+$$
+\begin{aligned}
+\nabla_\theta U(\theta)
+&=
+\nabla_\theta
+\sum_\tau
+P(\tau;\theta)R(\tau)
+\tag{1}
+\\
+&=
+\sum_\tau
+\nabla_\theta P(\tau;\theta)R(\tau)
+\tag{2}
+\\
+&=
+\sum_\tau
+P(\tau;\theta)
+\frac{1}{P(\tau;\theta)}
+\nabla_\theta P(\tau;\theta)
+R(\tau)
+\tag{3}
+\\
+&=
+\sum_\tau
+P(\tau;\theta)
+\frac{\nabla_\theta P(\tau;\theta)}
+{P(\tau;\theta)}
+R(\tau)
+\tag{4}
+\\
+&=
+\sum_\tau
+P(\tau;\theta)
+\nabla_\theta \log P(\tau;\theta)
+R(\tau).
+\tag{5}
+\end{aligned}
+$$
+
+Let's examine these steps individually.
+
+### Step 1
+
+Line (1) follows directly from
+
+$$
+U(\theta)
+=
+\sum_\tau
+P(\tau;\theta)R(\tau),
+$$
+
+where we have simply taken the gradient of both sides.
+
+### Step 2
+
+In line (2), we use the linearity of differentiation to rewrite the gradient of the sum as the sum of the gradients:
+
+$$
+\nabla_\theta
+\sum_\tau P(\tau;\theta)R(\tau)
+=
+\sum_\tau
+\nabla_\theta P(\tau;\theta)R(\tau).
+$$
+
+### Step 3
+
+In line (3), we multiply every term by
+
+$$
+\frac{P(\tau;\theta)}{P(\tau;\theta)} = 1.
+$$
+
+Thus,
+
+$$
+\nabla_\theta P(\tau;\theta)
+=
+P(\tau;\theta)
+\frac{\nabla_\theta P(\tau;\theta)}
+{P(\tau;\theta)}.
+$$
+
+This does not change the expression.
+
+### Step 4
+
+Line (4) simply rearranges the terms:
+
+$$
+P(\tau;\theta)
+\frac{1}{P(\tau;\theta)}
+\nabla_\theta P(\tau;\theta)
+=
+P(\tau;\theta)
+\frac{\nabla_\theta P(\tau;\theta)}
+{P(\tau;\theta)}.
+$$
+
+### Step 5: The Likelihood Ratio Trick
+
+Finally, line (5) follows from the identity
+
+$$
+\nabla_x \log f(x)
+=
+\frac{\nabla_x f(x)}{f(x)}.
+$$
+
+Therefore,
+
+$$
+\nabla_\theta \log P(\tau;\theta)
+=
+\frac{\nabla_\theta P(\tau;\theta)}
+{P(\tau;\theta)}.
+$$
+
+Substituting this identity gives
+
+$$
+\nabla_\theta U(\theta)
+=
+\sum_\tau
+P(\tau;\theta)
+\nabla_\theta \log P(\tau;\theta)
+R(\tau).
+$$
+
+This manipulation is known as the **likelihood ratio trick**, **log-derivative trick**, or **REINFORCE trick**.
+
+The resulting expression is commonly called the **likelihood ratio policy gradient**:
+
+$$
+\boxed{
+\nabla_\theta U(\theta)
+=
+\sum_\tau
+P(\tau;\theta)
+\nabla_\theta \log P(\tau;\theta)
+R(\tau)
+}
+$$
+
+Since the summation has the form of an expectation over trajectories,
+
+$$
+\boxed{
+\nabla_\theta U(\theta)
+=
+\mathbb{E}_{\tau \sim P(\tau;\theta)}
+\left[
+\nabla_\theta \log P(\tau;\theta)
+R(\tau)
+\right]
+}
+$$
+
+Once we have written the gradient as an expected value, it becomes much easier to estimate using sampled trajectories.
+
+## Sample-Based Estimate
+
+We can approximate the expectation using $m$ sampled trajectories:
+
+$$
+\tau^{(1)}, \tau^{(2)}, \ldots, \tau^{(m)}
+\sim P(\tau;\theta).
+$$
+
+The likelihood ratio policy gradient can then be approximated by the sample average
+
+$$
+\boxed{
+\nabla_\theta U(\theta)
+\approx
+\frac{1}{m}
+\sum_{i=1}^{m}
+\nabla_\theta
+\log P\left(\tau^{(i)};\theta\right)
+R\left(\tau^{(i)}\right)
+}
+$$
+
+where each $\tau^{(i)}$ is a sampled trajectory.
+
+## Finishing the Calculation
+
+Before calculating the expression above, we need to simplify
+
+$$
+\nabla_\theta
+\log P\left(\tau^{(i)};\theta\right).
+$$
+
+For a trajectory generated in an MDP,
+
+$$
+P\left(\tau^{(i)};\theta\right)
+=
+\prod_{t=0}^{H}
+P\left(
+s_{t+1}^{(i)}
+\mid
+s_t^{(i)},a_t^{(i)}
+\right)
+\pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right).
+$$
+
+Therefore,
+
+$$
+\begin{aligned}
+\nabla_\theta
+\log P\left(\tau^{(i)};\theta\right)
+&=
+\nabla_\theta
+\log
+\left[
+\prod_{t=0}^{H}
+P\left(
+s_{t+1}^{(i)}
+\mid
+s_t^{(i)},a_t^{(i)}
+\right)
+\pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+\right]
+\tag{1}
+\\
+&=
+\nabla_\theta
+\left[
+\sum_{t=0}^{H}
+\log P\left(
+s_{t+1}^{(i)}
+\mid
+s_t^{(i)},a_t^{(i)}
+\right)
++
+\sum_{t=0}^{H}
+\log \pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+\right]
+\tag{2}
+\\
+&=
+\nabla_\theta
+\sum_{t=0}^{H}
+\log P\left(
+s_{t+1}^{(i)}
+\mid
+s_t^{(i)},a_t^{(i)}
+\right)
++
+\nabla_\theta
+\sum_{t=0}^{H}
+\log \pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+\tag{3}
+\\
+&=
+\nabla_\theta
+\sum_{t=0}^{H}
+\log \pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+\tag{4}
+\\
+&=
+\sum_{t=0}^{H}
+\nabla_\theta
+\log \pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right).
+\tag{5}
+\end{aligned}
+$$
+
+### Step 1: Trajectory Probability
+
+Line (1) shows how to calculate the probability of a trajectory $\tau^{(i)}$:
+
+$$
+P\left(\tau^{(i)};\theta\right)
+=
+\prod_{t=0}^{H}
+P\left(
+s_{t+1}^{(i)}
+\mid
+s_t^{(i)},a_t^{(i)}
+\right)
+\pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right).
+$$
+
+The trajectory probability therefore depends on two components:
+
+- **Environment dynamics:**
+
+  $$
+  P\left(
+  s_{t+1}^{(i)}
+  \mid
+  s_t^{(i)},a_t^{(i)}
+  \right)
+  $$
+
+- **Policy action-selection probability:**
+
+  $$
+  \pi_\theta
+  \left(
+  a_t^{(i)}
+  \mid
+  s_t^{(i)}
+  \right)
+  $$
+
+### Step 2: Logarithm of a Product
+
+Line (2) uses the identity
+
+$$
+\log \prod_t x_t
+=
+\sum_t \log x_t.
+$$
+
+This converts the product of probabilities into a sum of log probabilities.
+
+### Step 3: Gradient of a Sum
+
+Line (3) follows from the linearity of the gradient:
+
+$$
+\nabla_\theta(A+B)
+=
+\nabla_\theta A
++
+\nabla_\theta B.
+$$
+
+### Step 4: Environment Dynamics Do Not Depend on $\theta$
+
+The transition probabilities of the environment
+
+$$
+P(s_{t+1}\mid s_t,a_t)
+$$
+
+do not depend on the policy parameters $\theta$.
+
+Therefore,
+
+$$
+\nabla_\theta
+\sum_{t=0}^{H}
+\log P\left(
+s_{t+1}^{(i)}
+\mid
+s_t^{(i)},a_t^{(i)}
+\right)
+=
+0.
+$$
+
+Only the policy $\pi_\theta$ depends on $\theta$. Thus,
+
+$$
+\nabla_\theta
+\log P\left(\tau^{(i)};\theta\right)
+=
+\nabla_\theta
+\sum_{t=0}^{H}
+\log \pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right).
+$$
+
+### Step 5: Final Simplification
+
+Finally, we move the gradient inside the sum:
+
+$$
+\boxed{
+\nabla_\theta
+\log P\left(\tau^{(i)};\theta\right)
+=
+\sum_{t=0}^{H}
+\nabla_\theta
+\log \pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+}
+$$
+
+## Final REINFORCE Gradient Estimate
+
+Substituting this result into the sample-based estimate gives
+
+$$
+\boxed{
+\nabla_\theta U(\theta)
+\approx
+\hat{g}
+=
+\frac{1}{m}
+\sum_{i=1}^{m}
+\sum_{t=0}^{H}
+\nabla_\theta
+\log \pi_\theta
+\left(
+a_t^{(i)}
+\mid
+s_t^{(i)}
+\right)
+R\left(\tau^{(i)}\right)
+}
+$$
+
+This is the gradient estimate used by **REINFORCE**.
+
 
 #### Lesson: Proximal Policy Optimization
 In this lesson, you'll learn about Proximal Policy Optimization (PPO), a cutting-edge policy gradient method.
