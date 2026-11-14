@@ -68,6 +68,7 @@ The important takeaway for you, though, is that there are inconsistencies out th
 <img src="img/ac_basic_agent_03.png" width="50%">
 </figure>
 
+
 ## A3C: Asynchronous Advantage Actor-Critic, N-step/ Parallel Training/ Off- vs. On-policy
 
 <figure align="center">
@@ -88,6 +89,7 @@ On-policy learning is when the policy use for interacting with the environment i
 
 Link to the Q-Prop paper: https://arxiv.org/abs/1611.02247
 
+
 ## A2C: Advantage Actor-Critic
 
 A2C Implementation (Shangtong Zhang github)[https://github.com/ShangtongZhang/DeepRL]
@@ -103,13 +105,47 @@ The algorithmic advantage (of A3C/A2C) is not "let's launch 16 agents and hope o
 
 ## GAE: Generalized Advantage Estimation
 
+Link to the GAE paper: https://arxiv.org/abs/1506.02438
+
+<figure align="center">
+<img src="img/gae.png" width="50%">
+</figure>
+
+There is another way for estimating expected returns called the lambda return. The intuition goes this way. Say after you try and step bootstrapping you realize that numbers of n larger than one often perform better. But it's still hard to tell what the number should be. Should it be a two, three, six or something else? To make the decision even more difficult, in some problems small numbers of n are better while in others, large numbers of n are better. How do you get this right? The idea of the lambda return is to create a mixture of all n-step bootstrapping estimates out once. Lambda is a hyperparameter used for weighting the combination of each n-step estimate to the lambda return. Say you set lambda to 0.5. The contribution to the lambda return would be a combination of all n-step returns weighted by the exponentially decaying factor across the different n-step estimates. Notice how the weight depends on the value of lambda you set and it decays exponentially at the rate of that value. So, for calculating the lambda return for state s at time step t, we would use all n-step returns and multiply each of the n-step return by the currents bonding weight. Then add them all up. Remember, that sum will be the lambda return for state s at time step t. Interestingly, when lambda is set to zero, the two-step, three-step and all n-step return other than the one step return, will be equal to zero. So, the lambda return when lambda is set to zero will be equivalent to the td estimate. If your lambda is set to one all n-step return other than the infinite step return will be equal to zero. So, the lambda return when lambda is set to one, will be equivalent to the Monte Carlo estimate. Again, a number between zero and one gives a mixture of all n-step bootstrapping estimate. But isn't this amazing that a single algorithm can do that? I think is beautiful. Generalized Advantage Estimation, GAE is a way to train the critic with this lambda return. You can fit the advantage function just like in A3C and A2C or using a mixture of n-step bootstrapping estimates. It's important to highlight that this type of return can be combined with virtually any policy-based method. In fact, in the paper that introduce GAE, TRPO was that policy-based method used. By using this type of estimation, this algorithm, TRPO plus GAE trains very quickly because multiple value functions are spread around on every time step due to the lambda return star estimate.
 
 
 ## DDPG: Deep Deterministic Policy Gradient, Continuous Actions
 
+In the (DDPG paper)[https://arxiv.org/abs/1509.02971], they introduced this algorithm as an "Actor-Critic" method. Though, some researchers think DDPG is best classified as a DQN method for continuous action spaces (along with (NAF)[https://arxiv.org/abs/1603.00748]). Regardless, DDPG is a very successful method and it's good for you to gain some intuition.
+
+<figure align="center">
+<img src="img/ddpg.png" width="50%">
+</figure>
+
+DDPG is a different kind of actor-critic method. In fact, it could be seen as approximate DQN, instead of an actual actor critic. The reason for this is that the critic in DDPG, is used to approximate the maximizer over the Q values of the next state, and not as a learned baseline, as we have seen so far. Though, this is still a very important algorithm and it is good to discuss it in more detail. One of the limitations of the DQN agent is that it is not straightforward to use in continuous action spaces. Imagine a DQN network that takes inner state and outputs the action value function. For example, for two action, say, up and down, Q(s, "up") gives you the estimated expected value for selecting the up action in state s, say minus 2.18. Q(s "down"), gives you the estimated expected value for selecting the down action in state s, say 8.45. To find the max action value function for this state, you just calculate the max of these values. Pretty easy. It's very easy to do a max operation in this example because this is a discrete action space. Even if you had more actions say a left, a right, a jump and so on, you still have a discrete action space. Even if it was high dimensional with many, many more actions, it would still be doable. But why do you need an action with continuous range? How do you get the value of a continuous action with this architecture? Say you want the jump action to be continuous, a variable between one and 100 centimeters. How do you find the value of jump, say 50 centimeters. This is one of the problems DDPG solves. In DDPG, we use two deep neural networks. We can call one the actor and the other the critic. Nothing new to this point. Now, the actor here is used to approximate the optimal policy deterministically. That means we want to always output the best believed action for any given state. This is unlike a stochastic policies in which we want the policy to learn a probability distribution over the actions. In DDPG, we want the believed best action every single time we query the actor network. That is a deterministic policy. The actor is basically learning the argmax a Q(S, a), which is the best action. The critic learns to evaluate the optimal action value function by using the actors best believed action. Again, we use this actor, which is an approximate maximizer, to calculate a new target value for training the action value function, much in the way DQN does.
+
 
 ## DDPG: Deep Deterministic Policy Gradient, Soft Updates
 
+Two other interesting aspects of DDPG are first, the use of a replay buffer, and second, the soft updates to the target networks. You already know how the replay buffer part works. I just wanted to mention that DDPG uses a replay buffer. But the soft updates are a bit different. In DQN, you have two copies of your network weights, the regular and the target network. In the Atari paper in which DQN was introduced, the target network is updated every 10,000 time steps. You simply copy the weights of your regular network into your target network. That is the target network is fixed for 10,000 time steps and then he gets a big update. In DDPG, you have two copies of your network weights for each network, a regular for the actor, an irregular for the critic, and a target for the actor, and a target for the critic. But in DDPG, the target networks are updated using a soft updates strategy. A soft update strategy consists of slowly blending your regular network weights with your target network weights. So, every time step you make your target network be 99.99 percent of your target network weights and only a 0.01 percent of your regular network weights. You are slowly mix in your regular network weights into your target network weights. Recall, the regular network is the most up today network because it's their one where training, while the target network is the one we use for prediction to stabilize strain. In practice, you'll get faster convergence by using this update strategy, and in fact, this way for updating the target network weights can be used with other algorithms that use target networks including DQN.
+
+<figure align="center">
+<img src="img/ddpg_soft_updates.png" width="50%">
+</figure>
+
+## Summary
+
+Actor-Critic methods extend policy-based reinforcement learning by introducing a value estimator that can substantially reduce the variance of policy-gradient updates. Rather than relying exclusively on complete Monte Carlo returns, the critic provides bootstrapped estimates of expected future returns that can be used to construct more informative learning signals for the actor.
+
+The approaches discussed range from one-step temporal-difference estimates to general $n$-step returns. Monte Carlo estimation represents the limiting case in which rewards are accumulated until the end of the trajectory without bootstrapping from an intermediate value estimate. The $\lambda$-return generalizes these concepts further by combining multiple $n$-step returns through an exponentially weighted mixture.
+
+These principles provide the foundation for several important Actor-Critic algorithms. A2C and A3C use parallel environment interaction to improve the diversity and efficiency of experience collection, while GAE provides a systematic mechanism for controlling the bias-variance trade-off of advantage estimates. DDPG extends Actor-Critic principles to deterministic policies and continuous action spaces while introducing off-policy learning and experience replay.
+
+Together, these methods illustrate the progression from basic policy-gradient optimization toward more sample-efficient and stable Actor-Critic architectures. The key concepts are the interaction between actor and critic, bootstrapping, advantage estimation, $n$-step returns, the distinction between on-policy and off-policy learning, and the management of bias and variance during training.
+
+Hyperparameters such as the discount factor $\gamma$, learning rate $\alpha$, and exploration-related parameters should not be interpreted through universal rules such as always maximizing $\gamma$ or driving the learning rate toward zero. Their appropriate values depend on the environment, optimization method, reward structure, and learning dynamics.
+
+These concepts form an important basis for subsequent methods such as Generalized Advantage Estimation and Proximal Policy Optimization, where advantage estimation and controlled policy updates are combined into a more systematic optimization framework.
 
 ## Understanding the Algorithmic Advantage of A2C and A3C
 
