@@ -590,6 +590,11 @@ In this example, we train a policy network to solve a basic environment such as 
 
 The aim is to use REINFORCE to directly optimize the policy without using value-function approximations.
 
+Udacity links cart pole examples:
+- [CartPole-v1](https://gym.openai.com/envs/CartPole-v1/)
+- [kvfrans-CartPole](https://kvfrans.com/simple-algoritms-for-solving-cartpole/)
+- [kvfrans-github](https://github.com/kvfrans/openai-cartpole)
+
 ---
 
 ## Step 1: Set Up the Environment

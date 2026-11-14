@@ -90,6 +90,8 @@ Link to the Q-Prop paper: https://arxiv.org/abs/1611.02247
 
 ## A2C: Advantage Actor-Critic
 
+A2C Implementation (Shangtong Zhang github)[https://github.com/ShangtongZhang/DeepRL]
+
 <figure align="center">
 <img src="img/a2c.png" width="50%">
 </figure>
