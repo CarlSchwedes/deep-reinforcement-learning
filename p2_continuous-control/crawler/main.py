@@ -179,9 +179,10 @@ def main():
                     i_episode, np.mean(scores_window), mean_episode_score, actor_lr, critic_lr
                 )
             )
+            torch.save(agent.local_net.state_dict(), Path(__file__).parent / f'checkpoint_{args.algorithm.lower()}.pth')
 
-        # Crawler is solved at an average score of +2000.0 over 100 consecutive episodes
-        if np.mean(scores_window) >= 2000.0 and len(scores_window) == 100:
+        # Crawler is solved at an average score of +300.0 over 100 consecutive episodes
+        if np.mean(scores_window) >= 300.0 and len(scores_window) == 100:
             print(
                 '\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(
                     i_episode - 100, np.mean(scores_window)

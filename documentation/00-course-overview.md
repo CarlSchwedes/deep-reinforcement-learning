@@ -5,6 +5,7 @@
   <img src="img/drl_model_development.png" width="50%">
 </figure>
 
+(Udacity DRL Blog Post)[https://www.udacity.com/blog/reinforcement-learning-explained-algorithms-examples-and-ai-use-cases/]
 
 ### The RL Problem Definition:
 * **Framework**: Formalized as a Markov Decision Process (MDP).

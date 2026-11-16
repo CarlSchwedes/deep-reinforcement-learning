@@ -181,7 +181,7 @@ def main():
             )
 
         # Crawler is solved at an average score of +2000.0 over 100 consecutive episodes
-        if np.mean(scores_window) >= 2000.0 and len(scores_window) == 100:
+        if np.mean(scores_window) >= 0.5 and len(scores_window) == 100:
             print(
                 '\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(
                     i_episode - 100, np.mean(scores_window)

@@ -24,7 +24,7 @@ class Agent():
         gamma=0.99,
         tau=5e-3,
         lr_actor=1e-4,
-        lr_critic=1e-3,
+        lr_critic=3e-4,
         lr_step_size=50,
         lr_gamma=0.95,
         update_every=20,
@@ -63,8 +63,8 @@ class Agent():
                 state_size, action_size
             ).to(self.device)
         elif self.algorithm == "SAC":
-            self.local_net = SoftActorCriticNetwork(state_size, action_size).to(self.device)
-            self.target_net = SoftActorCriticNetwork(state_size, action_size).to(self.device)
+            self.local_net = SoftActorCriticNetwork(state_size, action_size, log_std_min=-5.0, log_std_max=2.0).to(self.device)
+            self.target_net = SoftActorCriticNetwork(state_size, action_size, log_std_min=-5.0, log_std_max=2.0).to(self.device)
         else:
             raise ValueError(f"Unsupported algorithm '{algorithm}'. Choose from 'DDPG', 'TD3', or 'SAC'.")
 
@@ -87,7 +87,7 @@ class Agent():
 
         # Automatic Entropy Tuning (SAC only)
         if self.algorithm == "SAC":
-            self.target_entropy = -float(action_size)
+            self.target_entropy = -0.5 * float(action_size)
             self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=lr_actor)
             self.alpha_scheduler = StepLR(
@@ -140,6 +140,9 @@ class Agent():
 
     def step(self, states, actions, rewards, next_states, dones):
         """Save all 20 agent transitions into the shared replay buffer and learn on schedule."""
+        # Check for NaN or Inf values in states and next_states (from Unity Environment) to avoid corrupting the replay buffer
+        if not np.isfinite(states).all() or not np.isfinite(next_states).all():
+            return None, None
         # Iterate over the 20 parallel transitions and add each to memory
         for state, action, reward, next_state, done in zip(states, actions, rewards, next_states, dones):
             self.memory.add(state, action, reward, next_state, done)
@@ -222,10 +225,14 @@ class Agent():
                 alpha_loss = -(self.log_alpha * (log_probs + self.target_entropy).detach()).mean()
                 self.alpha_optimizer.zero_grad()
                 alpha_loss.backward()
+                torch.nn.utils.clip_grad_norm_([self.log_alpha], 1.0)
                 self.alpha_optimizer.step()
             else:
                 actions_pred = self.local_net(states)
                 actor_loss = -self.local_net.critic_forward(states, actions_pred).mean()
+
+            with torch.no_grad():
+                self.log_alpha.clamp_(-10.0, 2.0)
 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()

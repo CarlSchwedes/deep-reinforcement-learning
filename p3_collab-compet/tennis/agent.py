@@ -22,13 +22,13 @@ class Agent():
         buffer_size=int(1e5),
         batch_size=128,
         gamma=0.99,
-        tau=5e-3,
+        tau=1e-2,
         lr_actor=1e-4,
         lr_critic=1e-3,
         lr_step_size=50,
         lr_gamma=0.95,
-        update_every=20,
-        num_updates=10,
+        update_every=1,
+        num_updates=2,
         policy_delay=2,
         target_noise=0.2,
         noise_clip=0.5,
@@ -140,6 +140,8 @@ class Agent():
 
     def step(self, states, actions, rewards, next_states, dones):
         """Save all 20 agent transitions into the shared replay buffer and learn on schedule."""
+        if not np.isfinite(states).all() or not np.isfinite(next_states).all():
+            return None, None
         # Iterate over the 20 parallel transitions and add each to memory
         for state, action, reward, next_state, done in zip(states, actions, rewards, next_states, dones):
             self.memory.add(state, action, reward, next_state, done)
@@ -222,10 +224,14 @@ class Agent():
                 alpha_loss = -(self.log_alpha * (log_probs + self.target_entropy).detach()).mean()
                 self.alpha_optimizer.zero_grad()
                 alpha_loss.backward()
+                torch.nn.utils.clip_grad_norm_([self.log_alpha], 1.0)
                 self.alpha_optimizer.step()
             else:
                 actions_pred = self.local_net(states)
                 actor_loss = -self.local_net.critic_forward(states, actions_pred).mean()
+
+            with torch.no_grad():
+                self.log_alpha.clamp_(-10.0, 2.0)
 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
