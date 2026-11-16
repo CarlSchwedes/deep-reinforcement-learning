@@ -17,6 +17,20 @@
             "request": "launch",
             "program": "${workspaceFolder}/p1_value_based_methods/navigation_pixel/main.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "p2 reacher one",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p2_continuous-control/reacher_one_agent/main.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "p2 reacher twenty",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p2_continuous-control/reacher_twenty_agents/main.py",
+            "console": "integratedTerminal"
         }
     ]
 }
