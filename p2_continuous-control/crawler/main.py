@@ -76,7 +76,7 @@ def main():
     agent = Agent(
         state_size=state_size, 
         action_size=action_size,
-        algorithm=args.algorithm, 
+        algorithm=args.algorithm.upper(), 
         use_prioritized_replay=args.prioritized_replay,
         buffer_size=args.buffer_size,
         batch_size=args.batch_size,

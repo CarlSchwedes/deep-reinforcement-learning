@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from unityagents import UnityEnvironment
-from ppo_agent import Agent, PrioritizedReplayBuffer
+from agent import Agent, PrioritizedReplayBuffer
 from utils import init_logger, log_action_distribution_continuous, log_gradient_norms, log_step_metrics, log_episode_metrics, close_logger, log_per_distribution_plot
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -76,7 +76,7 @@ def main():
     agent = Agent(
         state_size=state_size, 
         action_size=action_size,
-        algorithm=args.algorithm, 
+        algorithm=args.algorithm.upper(), 
         use_prioritized_replay=args.prioritized_replay,
         buffer_size=args.buffer_size,
         batch_size=args.batch_size,
