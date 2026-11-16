@@ -191,7 +191,7 @@
             ]
         },
         {
-            "name": "p3 soccer parallel - TD3",
+            "name": "p3 soccer parallel - D_TD3",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/p3_collab-compet/soccer/main.py",
@@ -199,14 +199,14 @@
             "args": [
                 "--unity_worker_id", "8",
                 "--unity_seed", "8",
-                "--algorithm", "TD3",
-                "--n_episodes", "2000",
+                "--algorithm", "DISCRETE_TD3",
+                "--n_episodes", "3000",
                 "--max_t", "1000",
                 "--buffer_size", "1000000",
                 "--batch_size", "512",
                 "--lr_actor", "1e-4",
                 "--lr_critic", "3e-4",
-                "--lr_step_size", "800",
+                "--lr_step_size", "1000",
                 "--update_every", "20",
                 "--num_updates", "10",
                 "--beta_frames", "5000",
@@ -214,7 +214,7 @@
             ]
         },
         {
-            "name": "p3 soccer parallel - SAC",
+            "name": "p3 soccer parallel - D_SAC",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/p3_collab-compet/soccer/main.py",
@@ -222,14 +222,14 @@
             "args": [
                 "--unity_worker_id", "9",
                 "--unity_seed", "9",
-                "--algorithm", "SAC",
-                "--n_episodes", "2000",
+                "--algorithm", "DISCRETE_SAC",
+                "--n_episodes", "3000",
                 "--max_t", "1000",
                 "--buffer_size", "1000000",
                 "--batch_size", "512",
                 "--lr_actor", "1e-4",
                 "--lr_critic", "3e-4",
-                "--lr_step_size", "800",
+                "--lr_step_size", "1000",
                 "--update_every", "20",
                 "--num_updates", "10",
                 "--beta_frames", "5000",

@@ -4,7 +4,7 @@ import numpy as np
 import random
 from collections import namedtuple, deque
 
-from model import DeepDeterministicPolicyGradientNetwork, DeepDeterministicPolicyGradientNetworkWithTD3AndDecayingNoise, SoftActorCriticNetwork, DiscreteSoftActorCriticNetwork
+from model import DeepDeterministicPolicyGradientNetwork, DeepDeterministicPolicyGradientNetworkWithTD3AndDecayingNoise, SoftActorCriticNetwork, DiscreteTD3Network, DiscreteSoftActorCriticNetwork
 
 import torch
 import torch.nn.functional as F
@@ -19,7 +19,7 @@ class Agent():
         self,
         state_size,
         action_size,
-        algorithm="TD3",               # "DDPG", "TD3", "SAC", or "DISCRETE_SAC"
+        algorithm="TD3",               # "DDPG", "TD3", "SAC", "DISCRETE_SAC", or "DISCRETE_TD3"
         use_prioritized_replay=False,  # True -> PrioritizedReplayBuffer, False -> ReplayBuffer
         buffer_size=int(1e5),
         batch_size=128,
@@ -46,7 +46,7 @@ class Agent():
         self.tau = tau
         self.update_every = update_every
         self.num_updates = num_updates
-        self.policy_delay = policy_delay if self.algorithm == "TD3" else 1
+        self.policy_delay = policy_delay if self.algorithm in ("TD3", "DISCRETE_TD3") else 1
         self.target_noise = target_noise
         self.noise_clip = noise_clip
         self.beta = beta_start
@@ -58,20 +58,19 @@ class Agent():
             self.local_net = DeepDeterministicPolicyGradientNetwork(state_size, action_size).to(self.device)
             self.target_net = DeepDeterministicPolicyGradientNetwork(state_size, action_size).to(self.device)
         elif self.algorithm == "TD3":
-            self.local_net = DeepDeterministicPolicyGradientNetworkWithTD3AndDecayingNoise(
-                state_size, action_size
-            ).to(self.device)
-            self.target_net = DeepDeterministicPolicyGradientNetworkWithTD3AndDecayingNoise(
-                state_size, action_size
-            ).to(self.device)
+            self.local_net = DeepDeterministicPolicyGradientNetworkWithTD3AndDecayingNoise(state_size, action_size).to(self.device)
+            self.target_net = DeepDeterministicPolicyGradientNetworkWithTD3AndDecayingNoise(state_size, action_size).to(self.device)
         elif self.algorithm == "SAC":
             self.local_net = SoftActorCriticNetwork(state_size, action_size).to(self.device)
             self.target_net = SoftActorCriticNetwork(state_size, action_size).to(self.device)
         elif self.algorithm == "DISCRETE_SAC":
             self.local_net = DiscreteSoftActorCriticNetwork(state_size, action_size, fc1_units=400, fc2_units=300).to(self.device)
             self.target_net = DiscreteSoftActorCriticNetwork(state_size, action_size, fc1_units=400, fc2_units=300).to(self.device)
+        elif self.algorithm == "DISCRETE_TD3":
+            self.local_net = DiscreteTD3Network(state_size, action_size, fc1_units=400, fc2_units=300).to(self.device)
+            self.target_net = DiscreteTD3Network(state_size, action_size, fc1_units=400, fc2_units=300).to(self.device)
         else:
-            raise ValueError(f"Unsupported algorithm '{algorithm}'. Choose from 'DDPG', 'TD3', 'SAC', or 'DISCRETE_SAC'.")
+            raise ValueError(f"Unsupported algorithm '{algorithm}'. Choose from 'DDPG', 'TD3', 'SAC', 'DISCRETE_SAC', or 'DISCRETE_TD3'.")
 
         self.target_net.load_state_dict(self.local_net.state_dict())
 
@@ -106,7 +105,7 @@ class Agent():
             )
 
         # Replay Buffer (note: for DISCRETE_SAC, action_size in buffer is 1 scalar index per agent)
-        buffer_action_size = 1 if self.algorithm == "DISCRETE_SAC" else action_size
+        buffer_action_size = 1 if self.algorithm in ("DISCRETE_SAC", "DISCRETE_TD3") else action_size
         if self.use_prioritized_replay:
             self.memory = PrioritizedReplayBuffer(
                 buffer_action_size, buffer_size, batch_size, alpha=per_alpha, device=self.device
@@ -196,6 +195,13 @@ class Agent():
                 q2_next = self.target_net.critic2_forward(next_states, next_actions)
                 q_next = torch.min(q1_next, q2_next)
 
+            elif self.algorithm == "DISCRETE_TD3":
+                # Target policy smoothing via Gumbel-Softmax sampling
+                next_actions_one_hot = self.target_net(next_states, tau=1.0, hard=True)
+                q1_next = self.target_net.critic_forward(next_states, next_actions_one_hot)
+                q2_next = self.target_net.critic2_forward(next_states, next_actions_one_hot)
+                q_next = torch.min(q1_next, q2_next)
+
             elif self.algorithm == "SAC":
                 next_actions, next_log_probs = self.local_net.sample_action(next_states)
                 q1_next = self.target_net.critic_forward(next_states, next_actions)
@@ -217,6 +223,15 @@ class Agent():
             actions_idx = actions.long().view(-1, 1)
             q1_expected = self.local_net.critic_forward(states).gather(1, actions_idx)
             q2_expected = self.local_net.critic2_forward(states).gather(1, actions_idx)
+            td_error1 = q1_expected - q_targets
+            td_error2 = q2_expected - q_targets
+            critic_loss = (weights * (td_error1.pow(2) + td_error2.pow(2))).mean()
+            priorities = (0.5 * (td_error1.abs() + td_error2.abs()) + 1e-5).detach().cpu().numpy().squeeze()
+
+        elif self.algorithm == "DISCRETE_TD3":
+            actions_one_hot = F.one_hot(actions.long().view(-1), num_classes=self.action_size).float()
+            q1_expected = self.local_net.critic_forward(states, actions_one_hot)
+            q2_expected = self.local_net.critic2_forward(states, actions_one_hot)
             td_error1 = q1_expected - q_targets
             td_error2 = q2_expected - q_targets
             critic_loss = (weights * (td_error1.pow(2) + td_error2.pow(2))).mean()
@@ -270,6 +285,10 @@ class Agent():
                 with torch.no_grad():
                     self.log_alpha.clamp_(-10.0, 2.0)
 
+            elif self.algorithm == "DISCRETE_TD3":
+                actions_pred_one_hot = self.local_net(states, tau=1.0, hard=True)
+                actor_loss = -self.local_net.critic_forward(states, actions_pred_one_hot).mean()
+
             elif self.algorithm == "SAC":
                 actions_pred, log_probs = self.local_net.sample_action(states)
                 q1_pred = self.local_net.critic_forward(states, actions_pred)
@@ -279,7 +298,7 @@ class Agent():
 
                 # Auto-tune temperature alpha
                 alpha_loss = -(self.log_alpha * (log_probs + self.target_entropy).detach()).mean()
-                
+
                 self.alpha_optimizer.zero_grad()
                 alpha_loss.backward()
                 torch.nn.utils.clip_grad_norm_([self.log_alpha], 1.0)

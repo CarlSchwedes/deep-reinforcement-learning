@@ -60,6 +60,62 @@ class DeepDeterministicPolicyGradientNetwork(nn.Module):
         return self.critic_out(x)  # Output Q-value
 
 
+class DiscreteTD3Network(nn.Module):
+    """Discrete TD3 Network using Gumbel-Softmax for discrete action spaces."""
+
+    def __init__(self, state_size=336, action_size=6, fc1_units=512, fc2_units=256):
+        super().__init__()
+        self.action_size = action_size
+
+        # Actor: State -> Action Logits
+        self.actor_fc1 = nn.Linear(state_size, fc1_units)
+        self.actor_fc2 = nn.Linear(fc1_units, fc2_units)
+        self.actor_out = nn.Linear(fc2_units, action_size)
+
+        # Critic 1: (State + One-Hot Action) -> Q-value
+        self.critic1_fc1 = nn.Linear(state_size + action_size, fc1_units)
+        self.critic1_fc2 = nn.Linear(fc1_units, fc2_units)
+        self.critic1_out = nn.Linear(fc2_units, 1)
+
+        # Critic 2: (State + One-Hot Action) -> Q-value
+        self.critic2_fc1 = nn.Linear(state_size + action_size, fc1_units)
+        self.critic2_fc2 = nn.Linear(fc1_units, fc2_units)
+        self.critic2_out = nn.Linear(fc2_units, 1)
+
+    def forward(self, state, tau=1.0, hard=True):
+        """Returns a differentiable one-hot action tensor for training."""
+        x = F.relu(self.actor_fc1(state))
+        x = F.relu(self.actor_fc2(x))
+        logits = self.actor_out(x)
+        # Straight-through Gumbel-Softmax: one-hot in forward pass, differentiable in backward pass
+        one_hot_action = F.gumbel_softmax(logits, tau=tau, hard=hard, dim=-1)
+        return one_hot_action
+
+    @torch.no_grad()
+    def act(self, state, add_noise=True, epsilon=0.1):
+        """Returns integer action indices for the Unity environment."""
+        x = F.relu(self.actor_fc1(state))
+        x = F.relu(self.actor_fc2(x))
+        logits = self.actor_out(x)
+
+        if add_noise and torch.rand(1).item() < epsilon:
+            # Epsilon-greedy exploration
+            return torch.randint(0, self.action_size, (state.shape[0],), device=state.device)
+        return torch.argmax(logits, dim=-1)
+
+    def critic_forward(self, state, one_hot_action):
+        x = torch.cat((state, one_hot_action), dim=1)
+        x = F.relu(self.critic1_fc1(x))
+        x = F.relu(self.critic1_fc2(x))
+        return self.critic1_out(x)
+
+    def critic2_forward(self, state, one_hot_action):
+        x = torch.cat((state, one_hot_action), dim=1)
+        x = F.relu(self.critic2_fc1(x))
+        x = F.relu(self.critic2_fc2(x))
+        return self.critic2_out(x)
+
+
 class DeepDeterministicPolicyGradientNetworkWithTD3AndDecayingNoise(nn.Module):
     """Actor-Critic Network for DDPG with TD3 and decayed Gaussian noise."""
 
