@@ -39,6 +39,8 @@ class Agent():
         beta_frames=5000,
         device="cpu",
     ):
+        self.state_size = state_size
+        self.action_size = action_size
         self.algorithm = algorithm.upper()
         self.use_prioritized_replay = use_prioritized_replay
         self.batch_size = batch_size
