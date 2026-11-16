@@ -19,18 +19,130 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "p2 reacher one",
+            "name": "p2 reacher one - TD3",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/p2_continuous-control/reacher_one_agent/main.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "args": [
+                "--unity_worker_id", "0",
+                "--unity_seed", "0",
+                "--algorithm", "TD3",
+                "--n_episodes", "500",
+                "--max_t", "1000",
+                "--buffer_size", "100000",
+                "--batch_size", "128",
+                "--lr_step_size", "100",
+                "--update_every", "20",
+                "--num_updates", "10",
+                "--beta_frames", "10000",
+                "--device", "cpu"
+            ]
         },
         {
-            "name": "p2 reacher twenty",
+            "name": "p2 reacher one - SAC",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p2_continuous-control/reacher_one_agent/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--unity_worker_id", "1",
+                "--unity_seed", "1",
+                "--algorithm", "SAC",
+                "--n_episodes", "500",
+                "--max_t", "1000",
+                "--buffer_size", "100000",
+                "--batch_size", "128",
+                "--lr_step_size", "100",
+                "--update_every", "20",
+                "--num_updates", "10",
+                "--beta_frames", "10000",
+                "--device", "cpu"
+            ]
+        },
+        {
+            "name": "p2 reacher twenty - TD3",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/p2_continuous-control/reacher_twenty_agents/main.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "args": [
+                "--unity_worker_id", "2",
+                "--unity_seed", "2",
+                "--algorithm", "TD3",
+                "--n_episodes", "500",
+                "--max_t", "1000",
+                "--buffer_size", "100000",
+                "--batch_size", "128",
+                "--lr_step_size", "50",
+                "--update_every", "20",
+                "--num_updates", "10",
+                "--beta_frames", "5000",
+                "--device", "cpu"
+            ]
+        },
+        {
+            "name": "p2 reacher twenty - SAC",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p2_continuous-control/reacher_twenty_agents/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--unity_worker_id", "3",
+                "--unity_seed", "3",
+                "--algorithm", "SAC",
+                "--n_episodes", "500",
+                "--max_t", "1000",
+                "--buffer_size", "100000",
+                "--batch_size", "128",
+                "--lr_step_size", "50",
+                "--update_every", "20",
+                "--num_updates", "10",
+                "--beta_frames", "5000",
+                "--device", "cpu"
+            ]
+        },
+        {
+            "name": "p2 crawler parallel - TD3",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p2_continuous-control/crawler/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--unity_worker_id", "4",
+                "--unity_seed", "4",
+                "--algorithm", "TD3",
+                "--n_episodes", "4000",
+                "--max_t", "1000",
+                "--buffer_size", "1000000",
+                "--batch_size", "512",
+                "--lr_step_size", "2000",
+                "--update_every", "20",
+                "--num_updates", "10",
+                "--beta_frames", "5000",
+                "--device", "cpu"
+            ]
+        },
+        {
+            "name": "p2 crawler parallel - SAC",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/p2_continuous-control/crawler/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--unity_worker_id", "4",
+                "--unity_seed", "4",
+                "--algorithm", "SAC",
+                "--n_episodes", "4000",
+                "--max_t", "1000",
+                "--buffer_size", "1000000",
+                "--batch_size", "512",
+                "--lr_step_size", "2000",
+                "--update_every", "20",
+                "--num_updates", "10",
+                "--beta_frames", "5000",
+                "--device", "cpu"
+            ]
         }
     ]
 }

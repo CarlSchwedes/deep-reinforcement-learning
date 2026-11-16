@@ -1,4 +1,5 @@
 import os
+import argparse
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import torch
 import random
@@ -14,9 +15,35 @@ from utils import init_logger, log_action_distribution_continuous, log_gradient_
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+parser = argparse.ArgumentParser(description="Train an agent on the Reacher environment.")
+parser.add_argument("--unity_worker_id", type=int, default=0, help="Unity environment worker ID.")
+parser.add_argument("--unity_seed", type=int, default=0, help="Unity environment seed.")
+parser.add_argument("--algorithm", type=str, default="TD3", choices=["DDPG", "TD3", "SAC"], help="The RL algorithm to use.")
+parser.add_argument("--n_episodes", type=int, default=1000, help="Maximum number of training episodes.")
+parser.add_argument("--max_t", type=int, default=1000, help="Maximum number of timesteps per episode.")
+parser.add_argument("--prioritized_replay", action="store_true", help="Use prioritized experience replay.")
+parser.add_argument("--buffer_size", type=int, default=int(1e5), help="Replay buffer capacity.")
+parser.add_argument("--batch_size", type=int, default=128, help="Training minibatch size.")
+parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor.")
+parser.add_argument("--tau", type=float, default=5e-3, help="Soft-update interpolation factor.")
+parser.add_argument("--lr_actor", type=float, default=1e-4, help="Actor learning rate.")
+parser.add_argument("--lr_critic", type=float, default=1e-3, help="Critic learning rate.")
+parser.add_argument("--lr_step_size", type=int, default=50, help="Episodes between learning-rate decay steps.")
+parser.add_argument("--lr_gamma", type=float, default=0.95, help="Learning-rate decay multiplier.")
+parser.add_argument("--update_every", type=int, default=20, help="Environment steps between learning updates.")
+parser.add_argument("--num_updates", type=int, default=10, help="Learning updates per update interval.")
+parser.add_argument("--policy_delay", type=int, default=2, help="TD3 actor update delay.")
+parser.add_argument("--target_noise", type=float, default=0.2, help="TD3 target policy smoothing noise.")
+parser.add_argument("--noise_clip", type=float, default=0.5, help="TD3 target noise clipping limit.")
+parser.add_argument("--per_alpha", type=float, default=0.6, help="Prioritized replay exponent.")
+parser.add_argument("--beta_start", type=float, default=0.4, help="Initial importance-sampling correction.")
+parser.add_argument("--beta_frames", type=int, default=5000, help="Steps over which replay beta reaches 1.")
+parser.add_argument("--device", type=str, default="cpu", help="Torch device used for training.")
+
 
 def main():
-    env = UnityEnvironment(file_name="p2_continuous-control/reacher_one_agent/Reacher_Windows_x86_64/Reacher.exe")
+    args = parser.parse_args()
+    env = UnityEnvironment(file_name="p2_continuous-control/reacher_one_agent/Reacher_Windows_x86_64/Reacher.exe", worker_id=args.unity_worker_id, seed=args.unity_seed)
 
     # get the default brain
     brain_name = env.brain_names[0]
@@ -49,14 +76,30 @@ def main():
     agent = Agent(
         state_size=state_size, 
         action_size=action_size,
-        algorithm="SAC", 
-        use_prioritized_replay=True,
-        device="cpu"
+        algorithm=args.algorithm, 
+        use_prioritized_replay=args.prioritized_replay,
+        buffer_size=args.buffer_size,
+        batch_size=args.batch_size,
+        gamma=args.gamma,
+        tau=args.tau,
+        lr_actor=args.lr_actor,
+        lr_critic=args.lr_critic,
+        lr_step_size=args.lr_step_size,
+        lr_gamma=args.lr_gamma,
+        update_every=args.update_every,
+        num_updates=args.num_updates,
+        policy_delay=args.policy_delay,
+        target_noise=args.target_noise,
+        noise_clip=args.noise_clip,
+        per_alpha=args.per_alpha,
+        beta_start=args.beta_start,
+        beta_frames=args.beta_frames,
+        device=args.device,
         )
 
-    n_episodes = 1000     # n_episodes (int): maximum number of training episodes
-    max_t = 1000          # max_t (int): maximum number of timesteps per episode
- 
+    n_episodes = args.n_episodes
+    max_t = args.max_t
+
     scores = []                        # list containing scores from each episode
     scores_window = deque(maxlen=100)  # last 100 scores
 
@@ -139,7 +182,7 @@ def main():
                     i_episode - 100, np.mean(scores_window)
                 )
             )
-            torch.save(agent.local_net.state_dict(), Path(__file__).parent / 'checkpoint.pth')
+            torch.save(agent.local_net.state_dict(), Path(__file__).parent / f'checkpoint_{args.algorithm.lower()}.pth')
             break
 
         close_logger(logger)
@@ -152,7 +195,7 @@ def main():
     plt.plot(np.arange(len(scores)), scores)
     plt.ylabel('Score')
     plt.xlabel('Episode #')
-    plt.savefig('p2_continuous-control/reacher_one_agent/reports/reacher_one_local_avg_score.png')
+    plt.savefig(f'p2_continuous-control/reacher_one_agent/reports/reacher_one_{args.algorithm.lower()}_score.png')
     #plt.show()
 
 

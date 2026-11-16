@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -133,7 +134,7 @@ class DeepDeterministicPolicyGradientNetworkWithTD3AndDecayingNoise(nn.Module):
 class SoftActorCriticNetwork(nn.Module):
     """Actor-Critic Network for Soft Actor-Critic (SAC)."""
 
-    def __init__(self, state_size, action_size, fc1_units=256, fc2_units=256, log_std_min=-20, log_std_max=2):
+    def __init__(self, state_size, action_size, fc1_units=400, fc2_units=300, log_std_min=-20, log_std_max=2):
         super(SoftActorCriticNetwork, self).__init__()
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
@@ -158,7 +159,7 @@ class SoftActorCriticNetwork(nn.Module):
         x = F.relu(self.actor_fc1(state))
         x = F.relu(self.actor_fc2(x))
         mean = self.actor_mean(x)
-        log_std = torch.clamp(self.actor_log_std(x), min=-20, max=2)  # Clamp log_std for numerical stability
+        log_std = torch.clamp(self.actor_log_std(x), min=self.log_std_min, max=self.log_std_max)  # Clamp log_std for numerical stability
         return mean, log_std
 
     def sample_action(self, state, deterministic=False):
@@ -176,7 +177,7 @@ class SoftActorCriticNetwork(nn.Module):
         action = torch.tanh(z)
 
         # Change-of-variables correction for tanh squashing
-        log_prob = normal.log_prob(z) - torch.log(1.0 - action.pow(2) + 1e-6)
+        log_prob = normal.log_prob(z) - (2.0 * (math.log(2.0) - z - F.softplus(-2.0 * z))) # normal.log_prob(z) - torch.log(1.0 - action.pow(2) + 1e-6)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         return action, log_prob

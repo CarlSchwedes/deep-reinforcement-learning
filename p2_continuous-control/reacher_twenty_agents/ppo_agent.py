@@ -27,7 +27,7 @@ class Agent():
         action_size,
         algorithm="TD3",               # "DDPG", "TD3", or "SAC"
         use_prioritized_replay=False,  # True -> PrioritizedReplayBuffer, False -> ReplayBuffer
-        buffer_size=int(4e4),
+        buffer_size=int(1e5),
         batch_size=128,
         gamma=0.99,
         tau=5e-3,
@@ -79,11 +79,11 @@ class Agent():
         self.target_net.load_state_dict(self.local_net.state_dict())
 
         # Group Actor vs Critic parameters dynamically
-        actor_params = [p for name, p in self.local_net.named_parameters() if name.startswith("actor")]
-        critic_params = [p for name, p in self.local_net.named_parameters() if name.startswith("critic")]
+        self.actor_params = [p for name, p in self.local_net.named_parameters() if name.startswith("actor")]
+        self.critic_params = [p for name, p in self.local_net.named_parameters() if name.startswith("critic")]
 
-        self.actor_optimizer = optim.Adam(actor_params, lr=lr_actor)
-        self.critic_optimizer = optim.Adam(critic_params, lr=lr_critic)
+        self.actor_optimizer = optim.Adam(self.actor_params, lr=lr_actor)
+        self.critic_optimizer = optim.Adam(self.critic_params, lr=lr_critic)
 
         # Learning Rate Schedulers
         self.actor_scheduler = optim.lr_scheduler.StepLR(
@@ -207,7 +207,7 @@ class Agent():
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.local_net.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(self.critic_params, 1.0)
         self.critic_optimizer.step()
 
         # Safely updates PER priorities, or acts as a no-op for uniform ReplayBuffer
@@ -215,6 +215,10 @@ class Agent():
 
         # ---------------- 3. Update Actor & Target Networks ---------------- #
         if self.learn_step % self.policy_delay == 0:
+            # Freeze critic parameters so backward() doesn't compute/store unused critic gradients
+            for p in self.critic_params:
+                p.requires_grad = False
+
             if self.algorithm == "SAC":
                 actions_pred, log_probs = self.local_net.sample_action(states)
                 q1_pred = self.local_net.critic_forward(states, actions_pred)
@@ -233,7 +237,11 @@ class Agent():
 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor_params, 1.0)
             self.actor_optimizer.step()
+
+            for p in self.critic_params:
+                p.requires_grad = True
 
             self.soft_update(self.local_net, self.target_net, self.tau)
 
