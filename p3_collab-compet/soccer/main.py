@@ -13,8 +13,6 @@ from unityagents import UnityEnvironment
 from agent import Agent, PrioritizedReplayBuffer
 from utils import init_logger, log_action_distribution_continuous, log_gradient_norms, log_step_metrics, log_episode_metrics, close_logger, log_per_distribution_plot
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 parser = argparse.ArgumentParser(description="Train an agent on the Soccer environment.")
 parser.add_argument("--unity_worker_id", type=int, default=0, help="Unity environment worker ID.")
 parser.add_argument("--unity_seed", type=int, default=0, help="Unity environment seed.")
