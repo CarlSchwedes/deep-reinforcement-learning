@@ -1964,3 +1964,7 @@ Learn more about [evolution strategies](https://blog.openai.com/evolution-strate
 
 Neural network that encodes action probabilities ([Source](https://openai.com/index/evolution-strategies/))
 
+
+## Examples Github Repo:
+
+(Deep RL lajd repo)[https://github.com/lajd/Udacity-Deep-Reinforcement-Learning]
